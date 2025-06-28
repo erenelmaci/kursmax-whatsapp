@@ -10,6 +10,7 @@ let isLoggedIn = false
 // Otomatik mesaj şablonları için değişkenler
 let preparedMessages = []
 let currentStudents = []
+let isMessagesPrepared = false // Mesajların hazırlanıp hazırlanmadığını takip etmek için
 
 // Test öğrenci verisi (gerçek veritabanı olmadan test için)
 const TEST_STUDENTS = [
@@ -38,7 +39,7 @@ const TEST_INSTITUTIONS = [
 const { students, TEST_PHONE } = require("./mockData.js")
 
 // DOM yüklendiğinde çalışacak fonksiyonlar
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
   console.log("DOM yüklendi, uygulama başlatılıyor...")
 
   initializeApp()
@@ -46,8 +47,78 @@ document.addEventListener("DOMContentLoaded", function () {
   setupPuppeteerListener()
   updateSystemStatus()
 
-  // Login durumunu kontrol et
-  checkLoginStatus()
+  // Kaydedilmiş giriş bilgilerini kontrol et
+  const savedKurumkod = localStorage.getItem("kursmax_kurumkod")
+  const savedKullanici = localStorage.getItem("kursmax_kullanici")
+  const savedParola = localStorage.getItem("kursmax_parola")
+
+  if (savedKurumkod && savedKullanici && savedParola) {
+    // Form alanlarını doldur
+    const kurumkodElement = document.getElementById("kurumkod")
+    const kullaniciElement = document.getElementById("kullanici")
+    const parolaElement = document.getElementById("parola")
+    const rememberMeElement = document.getElementById("rememberMe")
+
+    if (kurumkodElement && kullaniciElement && parolaElement) {
+      kurumkodElement.value = savedKurumkod
+      kullaniciElement.value = savedKullanici
+      parolaElement.value = savedParola
+      if (rememberMeElement) {
+        rememberMeElement.checked = true
+      }
+
+      // Otomatik login yap
+      try {
+        console.log("Kaydedilmiş bilgilerle otomatik login yapılıyor...")
+        const result = await ipcRenderer.invoke("kursmax-login", {
+          kurumkod: savedKurumkod,
+          kullanici: savedKullanici,
+          parola: savedParola,
+        })
+
+        if (result.success) {
+          console.log("Otomatik login başarılı!")
+          isLoggedIn = true
+
+          // Ana uygulamayı göster
+          const mainApp = document.getElementById("mainApp")
+          if (mainApp) {
+            mainApp.style.display = "block"
+            mainApp.style.filter = "none"
+            mainApp.style.pointerEvents = "auto"
+          }
+
+          // Login modalını kapat
+          const loginModalElement = document.getElementById("loginModal")
+          let loginModal = bootstrap.Modal.getInstance(loginModalElement)
+          if (!loginModal) {
+            loginModal = new bootstrap.Modal(loginModalElement)
+          }
+          loginModal.hide()
+
+          // Modal backdrop'ları temizle
+          document.body.classList.remove("modal-open")
+          const modalBackdrops = document.querySelectorAll(".modal-backdrop")
+          modalBackdrops.forEach((el) => el.parentNode.removeChild(el))
+
+          // Login durumunu güncelle
+          updateLoginStatus()
+          updateSystemStatus()
+        } else {
+          console.log("Otomatik login başarısız, modal açık kalacak")
+          showLoginModal()
+        }
+      } catch (error) {
+        console.error("Otomatik login hatası:", error)
+        showLoginModal()
+      }
+    } else {
+      showLoginModal()
+    }
+  } else {
+    // Kaydedilmiş bilgi yoksa login modalını göster
+    showLoginModal()
+  }
 
   // Periyodik WhatsApp durum kontrolü (5 saniyede bir)
   setInterval(() => {
@@ -91,15 +162,20 @@ function initializeApp() {
 
   // Sistem durumunu güncelle
   updateSystemStatus()
-
-  // Login modal'ını göster
-  showLoginModal()
 }
 
 // Login modal'ını göster
 function showLoginModal() {
   const loginModal = new bootstrap.Modal(document.getElementById("loginModal"))
   loginModal.show()
+
+  // Modal açıldığında blur efekti ekle
+  document.body.classList.add("modal-open")
+  const mainApp = document.getElementById("mainApp")
+  if (mainApp) {
+    mainApp.style.filter = "blur(8px)"
+    mainApp.style.pointerEvents = "none"
+  }
 }
 
 // Event listener'ları ayarla
@@ -135,25 +211,9 @@ function setupEventListeners() {
   }
 
   // Mesaj gönderme
-  const sendMessagesBtn = document.getElementById("send-messages")
+  const sendMessagesBtn = document.getElementById("sendMessage")
   if (sendMessagesBtn) {
     sendMessagesBtn.addEventListener("click", handleSendMessages)
-  }
-
-  // Debug butonları
-  const checkWhatsAppBtn = document.getElementById("check-whatsapp")
-  if (checkWhatsAppBtn) {
-    checkWhatsAppBtn.addEventListener("click", handleCheckWhatsApp)
-  }
-
-  const refreshWhatsAppBtn = document.getElementById("refresh-whatsapp")
-  if (refreshWhatsAppBtn) {
-    refreshWhatsAppBtn.addEventListener("click", handleRefreshWhatsApp)
-  }
-
-  const restartWhatsAppBtn = document.getElementById("restart-whatsapp")
-  if (restartWhatsAppBtn) {
-    restartWhatsAppBtn.addEventListener("click", handleRestartWhatsApp)
   }
 
   // Test handler'ı çağır
@@ -163,60 +223,159 @@ function setupEventListeners() {
   }
 
   // Mesaj tipi değiştiğinde arayüzü güncelle
-  document
-    .getElementById("messageType")
-    .addEventListener("change", function () {
+  const messageTypeElement = document.getElementById("messageType")
+  if (messageTypeElement) {
+    messageTypeElement.addEventListener("change", function () {
       const messageType = this.value
       const examInfoSection = document.getElementById("examInfoSection")
       const customMessageSection = document.getElementById(
         "customMessageSection"
       )
+      const customMessageElement = document.getElementById("customMessage")
 
       // Sınav karnesi seçildiğinde sınav bilgilerini göster
       if (messageType === "exam_card") {
-        examInfoSection.style.display = "block"
-        customMessageSection.style.display = "none"
+        if (examInfoSection) examInfoSection.style.display = "block"
+        if (customMessageSection) customMessageSection.style.display = "none"
+        if (customMessageElement) customMessageElement.disabled = true
       } else if (messageType === "custom") {
-        examInfoSection.style.display = "none"
-        customMessageSection.style.display = "block"
+        if (examInfoSection) examInfoSection.style.display = "none"
+        if (customMessageSection) customMessageSection.style.display = "block"
+        if (customMessageElement) customMessageElement.disabled = false
       } else {
-        examInfoSection.style.display = "none"
-        customMessageSection.style.display = "none"
+        if (examInfoSection) examInfoSection.style.display = "none"
+        if (customMessageSection) customMessageSection.style.display = "none"
+        if (customMessageElement) customMessageElement.disabled = true
       }
     })
+  }
 
-  // Özel mesaj karakter sayısı kontrolü
-  document
-    .getElementById("customMessage")
-    .addEventListener("input", function () {
+  // Özel mesaj karakter sayacı
+  const customMessageElement = document.getElementById("customMessage")
+  if (customMessageElement) {
+    customMessageElement.addEventListener("input", function () {
       const maxLength = 500
       const currentLength = this.value.length
       const remaining = maxLength - currentLength
-
-      document.getElementById("charCount").textContent = remaining
-
-      if (remaining < 0) {
-        document.getElementById("charCount").style.color = "red"
-      } else {
-        document.getElementById("charCount").style.color = "inherit"
+      const charCountElement = document.getElementById("charCount")
+      if (charCountElement) {
+        charCountElement.textContent = remaining
+        if (remaining < 50) {
+          charCountElement.style.color = "red"
+        } else if (remaining < 100) {
+          charCountElement.style.color = "orange"
+        } else {
+          charCountElement.style.color = "inherit"
+        }
       }
     })
+  }
 
-  // Mesajları hazırla butonu
-  document
-    .getElementById("prepareMessages")
-    .addEventListener("click", async function () {
+  // Hazırlanan mesajları gönder
+  const sendPreparedMessagesElement = document.getElementById(
+    "sendPreparedMessages"
+  )
+  if (sendPreparedMessagesElement) {
+    sendPreparedMessagesElement.addEventListener("click", async function () {
+      if (!preparedMessages || preparedMessages.length === 0) {
+        showError("Gönderilecek mesaj bulunamadı")
+        return
+      }
+
       try {
-        const messageType = document.getElementById("messageType").value
-        const targetAudience = document.querySelector(
+        showSuccess("Mesajlar gönderiliyor...")
+        let successCount = 0
+        let failedCount = 0
+        const failedMessages = []
+
+        for (const message of preparedMessages) {
+          try {
+            const result = await ipcRenderer.invoke("send-whatsapp-message", {
+              phoneNumber: message.phone,
+              message: message.message,
+            })
+
+            if (result.success) {
+              successCount++
+              console.log(`✅ ${message.name} - Mesaj gönderildi`)
+            } else {
+              failedCount++
+              failedMessages.push({
+                name: message.name,
+                phone: message.phone,
+                error: result.message,
+              })
+              console.log(
+                `❌ ${message.name} - Mesaj gönderilemedi: ${result.message}`
+              )
+            }
+
+            // Her mesaj arasında kısa bekleme
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+          } catch (error) {
+            failedCount++
+            failedMessages.push({
+              name: message.name,
+              phone: message.phone,
+              error: error.message,
+            })
+            console.log(`❌ ${message.name} - Hata: ${error.message}`)
+          }
+        }
+
+        // Sonuçları göster
+        if (successCount > 0) {
+          showSuccess(`${successCount} mesaj başarıyla gönderildi`)
+        }
+
+        if (failedCount > 0) {
+          showError(`${failedCount} mesaj gönderilemedi`)
+          renderFailedMessages(failedMessages)
+        }
+
+        // Hazırlanan mesajları temizle
+        preparedMessages = []
+        document.getElementById("messagesRow").style.display = "none"
+        document.getElementById("preparedMessagesList").innerHTML = ""
+        document.getElementById("messageCount").textContent = "0"
+      } catch (error) {
+        showError("Mesaj gönderme sırasında hata oluştu: " + error.message)
+      }
+    })
+  }
+
+  // Mesajları hazırla
+  const prepareMessagesElement = document.getElementById("prepareMessages")
+  if (prepareMessagesElement) {
+    prepareMessagesElement.addEventListener("click", async function () {
+      // Eğer mesajlar zaten hazırlanmışsa, silme işlemi yap
+      if (isMessagesPrepared) {
+        clearPreparedMessages()
+        return
+      }
+
+      try {
+        const messageTypeElement = document.getElementById("messageType")
+        // Checkbox ile birden fazla hedef kitle seçimi
+        const targetAudienceElements = document.querySelectorAll(
           'input[name="targetAudience"]:checked'
-        ).value
+        )
+        const targetAudiences = Array.from(targetAudienceElements).map(
+          (el) => el.value
+        )
+
+        if (!messageTypeElement || targetAudiences.length === 0) {
+          showError("Mesaj tipi veya hedef kitle seçilmemiş")
+          return
+        }
+
+        const messageType = messageTypeElement.value
 
         // Seçili öğrencileri al
         const selectedStudents = getSelectedStudents()
 
         if (selectedStudents.length === 0) {
-          showAlert("Lütfen en az bir öğrenci seçin", "warning")
+          showError("Lütfen en az bir öğrenci seçin")
           return
         }
 
@@ -225,12 +384,21 @@ function setupEventListeners() {
         let customMessage = ""
 
         if (messageType === "exam_card") {
-          const examName = document.getElementById("examName").value
-          const examNo = document.getElementById("examNo").value
-          const examType = document.getElementById("examType").value
+          const examNameElement = document.getElementById("examName")
+          const examNoElement = document.getElementById("examNo")
+          const examTypeElement = document.getElementById("examType")
+
+          if (!examNameElement || !examNoElement) {
+            showError("Sınav bilgileri eksik")
+            return
+          }
+
+          const examName = examNameElement.value
+          const examNo = examNoElement.value
+          const examType = examTypeElement ? examTypeElement.value : "TYT"
 
           if (!examName || !examNo) {
-            showAlert("Sınav adı ve numarası gereklidir", "warning")
+            showError("Sınav adı ve numarası gereklidir")
             return
           }
 
@@ -240,18 +408,24 @@ function setupEventListeners() {
             type: examType,
           }
         } else if (messageType === "custom") {
-          customMessage = document.getElementById("customMessage").value
+          const customMessageElement = document.getElementById("customMessage")
+          if (!customMessageElement) {
+            showError("Özel mesaj alanı bulunamadı")
+            return
+          }
+
+          customMessage = customMessageElement.value
 
           if (!customMessage.trim()) {
-            showAlert("Özel mesaj gereklidir", "warning")
+            showError("Özel mesaj gereklidir")
             return
           }
         }
 
         // Backend'e mesaj hazırlama isteği gönder
-        const result = await window.electronAPI.createAutoMessages({
+        const result = await ipcRenderer.invoke("create-auto-messages", {
           messageType: messageType,
-          targetAudience: targetAudience,
+          targetAudience: targetAudiences, // Dizi olarak gönder
           students: selectedStudents,
           customMessage: customMessage,
           examInfo: examInfo,
@@ -260,235 +434,166 @@ function setupEventListeners() {
         if (result.success) {
           preparedMessages = result.messages
           currentStudents = selectedStudents
+          isMessagesPrepared = true // Mesajların hazırlandığını işaretle
+
+          // Buton metnini değiştir
+          updatePrepareButtonText()
+
+          // Paneli göstermek için
+          document.getElementById("messagesRow").style.display = "block"
           displayPreparedMessages()
-          showAlert(`${result.count} adet mesaj hazırlandı`, "success")
+          showSuccess(`${result.count} adet mesaj hazırlandı`)
         } else {
-          showAlert("Mesaj hazırlama hatası: " + result.message, "error")
+          showError("Mesaj hazırlama hatası: " + result.message)
         }
       } catch (error) {
-        console.error("Mesaj hazırlama hatası:", error)
-        showAlert("Mesaj hazırlama sırasında hata oluştu", "error")
+        showError("Mesaj hazırlama sırasında hata oluştu: " + error.message)
       }
     })
+  }
 
   // Hazırlanan mesajları göster
   function displayPreparedMessages() {
-    const section = document.getElementById("preparedMessagesSection")
-    const list = document.getElementById("preparedMessagesList")
-    const count = document.getElementById("messageCount")
+    const messagesListElement = document.getElementById("preparedMessagesList")
+    const messageCountElement = document.getElementById("messageCount")
+    const messagesRowElement = document.getElementById("messagesRow")
 
-    if (preparedMessages.length === 0) {
-      section.style.display = "none"
+    if (!messagesListElement || !messageCountElement || !messagesRowElement) {
+      console.error("Mesaj gösterme elementleri bulunamadı")
       return
     }
 
-    // Mesaj listesini temizle
-    list.innerHTML = ""
+    if (!preparedMessages || preparedMessages.length === 0) {
+      messagesRowElement.style.display = "none"
+      return
+    }
 
-    // Her mesaj için tablo satırı oluştur
-    preparedMessages.forEach((msg, index) => {
-      const row = document.createElement("tr")
-      row.innerHTML = `
-        <td>${msg.recipientName}</td>
-        <td>${msg.phone}</td>
-        <td>
-          <small class="text-muted">
-            ${
-              msg.message.length > 100
-                ? msg.message.substring(0, 100) + "..."
-                : msg.message
-            }
-          </small>
-        </td>
+    // Mesaj listesini oluştur
+    let html = ""
+    preparedMessages.forEach((message) => {
+      const shortMessage =
+        message.message.length > 50
+          ? message.message.substring(0, 50) + "..."
+          : message.message
+
+      html += `
+        <tr>
+          <td>${message.recipientName || message.name}</td>
+          <td>${message.phone}</td>
+          <td title="${message.message}">${shortMessage}</td>
+        </tr>
       `
-      list.appendChild(row)
     })
 
-    count.textContent = preparedMessages.length
-    section.style.display = "block"
+    messagesListElement.innerHTML = html
+    messageCountElement.textContent = preparedMessages.length
+
+    // Paneli göster
+    messagesRowElement.style.display = "block"
   }
 
-  // Hazırlanan mesajları gönder
-  document
-    .getElementById("sendPreparedMessages")
-    .addEventListener("click", async function () {
-      try {
-        if (preparedMessages.length === 0) {
-          showAlert("Gönderilecek mesaj yok", "warning")
-          return
-        }
+  // Hazırlanan mesajları sil
+  function clearPreparedMessages() {
+    preparedMessages = []
+    currentStudents = []
+    isMessagesPrepared = false
 
-        // WhatsApp bağlantısını kontrol et
-        const statusResult = await window.electronAPI.checkWhatsAppStatus()
-        if (statusResult.status !== "connected") {
-          showAlert(
-            "WhatsApp bağlantısı yok. Lütfen önce WhatsApp'a bağlanın.",
-            "warning"
-          )
-          return
-        }
+    // Buton metnini güncelle
+    updatePrepareButtonText()
 
-        // Onay al
-        const confirmed = confirm(
-          `${preparedMessages.length} adet mesaj gönderilecek. Onaylıyor musunuz?`
-        )
-        if (!confirmed) return
+    // Paneli gizle
+    const messagesRowElement = document.getElementById("messagesRow")
+    if (messagesRowElement) {
+      messagesRowElement.style.display = "none"
+    }
 
-        // Butonu devre dışı bırak
-        this.disabled = true
-        this.innerHTML =
-          '<i class="fas fa-spinner fa-spin"></i> Gönderiliyor...'
+    // Mesaj listesini temizle
+    const messagesListElement = document.getElementById("preparedMessagesList")
+    if (messagesListElement) {
+      messagesListElement.innerHTML = ""
+    }
 
-        // Mesajları gönder
-        const result = await window.electronAPI.sendMessages({
-          recipients: preparedMessages,
-          message: "", // Mesajlar zaten hazırlanmış durumda
-        })
+    // Mesaj sayısını sıfırla
+    const messageCountElement = document.getElementById("messageCount")
+    if (messageCountElement) {
+      messageCountElement.textContent = "0"
+    }
 
-        if (result.success) {
-          showAlert(
-            `✅ ${result.sentCount}/${result.totalCount} mesaj başarıyla gönderildi`,
-            "success"
-          )
+    showSuccess("Hazırlanan mesajlar silindi")
+  }
 
-          // Başarısız mesajları göster
-          if (result.failed.length > 0) {
-            let failedMessage = "Başarısız mesajlar:\n"
-            result.failed.forEach((fail) => {
-              failedMessage += `- ${fail.name}: ${fail.error}\n`
-            })
-            alert(failedMessage)
-          }
-
-          // Mesaj listesini temizle
-          preparedMessages = []
-          displayPreparedMessages()
-        } else {
-          showAlert("Mesaj gönderme hatası: " + result.message, "error")
-        }
-      } catch (error) {
-        console.error("Mesaj gönderme hatası:", error)
-        showAlert("Mesaj gönderme sırasında hata oluştu", "error")
-      } finally {
-        // Butonu tekrar aktif et
-        const button = document.getElementById("sendPreparedMessages")
-        button.disabled = false
-        button.innerHTML = '<i class="fas fa-paper-plane"></i> Tümünü Gönder'
+  // Hazırla butonunun metnini güncelle
+  function updatePrepareButtonText() {
+    const prepareMessagesElement = document.getElementById("prepareMessages")
+    if (prepareMessagesElement) {
+      if (isMessagesPrepared) {
+        prepareMessagesElement.innerHTML =
+          '<i class="fas fa-trash"></i> Hazırlanan Mesajları Sil'
+        prepareMessagesElement.className = "btn btn-danger"
+      } else {
+        prepareMessagesElement.innerHTML =
+          '<i class="fas fa-cogs"></i> Mesajları Hazırla'
+        prepareMessagesElement.className = "btn btn-primary"
       }
+    }
+  }
+
+  const refreshWhatsAppBtn = document.getElementById("refresh-whatsapp")
+  if (refreshWhatsAppBtn) {
+    refreshWhatsAppBtn.addEventListener("click", handleRefreshWhatsApp)
+  }
+
+  // Debug butonları
+  const checkWhatsAppBtn = document.getElementById("check-whatsapp")
+  if (checkWhatsAppBtn) {
+    checkWhatsAppBtn.addEventListener("click", handleCheckWhatsApp)
+  }
+
+  // Modal blur efekti
+  const loginModal = document.getElementById("loginModal")
+  if (loginModal) {
+    loginModal.addEventListener("show.bs.modal", function () {
+      document.body.classList.add("modal-open")
     })
 
-  // Manuel mesaj gönderme (mevcut sistem)
-  document
-    .getElementById("sendMessage")
-    .addEventListener("click", async function () {
-      try {
-        const message = document.getElementById("messageInput").value.trim()
-        const selectedStudents = getSelectedStudents()
-
-        if (!message) {
-          showAlert("Lütfen bir mesaj yazın", "warning")
-          return
-        }
-
-        if (selectedStudents.length === 0) {
-          showAlert("Lütfen en az bir öğrenci seçin", "warning")
-          return
-        }
-
-        // WhatsApp bağlantısını kontrol et
-        const statusResult = await window.electronAPI.checkWhatsAppStatus()
-        if (statusResult.status !== "connected") {
-          showAlert(
-            "WhatsApp bağlantısı yok. Lütfen önce WhatsApp'a bağlanın.",
-            "warning"
-          )
-          return
-        }
-
-        // Alıcıları hazırla
-        const recipients = []
-        selectedStudents.forEach((student) => {
-          // Seçili hedef kitleye göre telefon numarası seç
-          const targetAudience = document.querySelector(
-            'input[name="targetAudience"]:checked'
-          ).value
-          let phone = ""
-
-          switch (targetAudience) {
-            case "student":
-              phone = student.ceptel || ""
-              break
-            case "mother":
-              phone = student.annecep || ""
-              break
-            case "father":
-              phone = student.babacep || ""
-              break
-          }
-
-          if (phone && phone.trim().length === 10) {
-            recipients.push({
-              name: `${student.ad} ${student.soyad}`,
-              phone: phone,
-            })
-          }
-        })
-
-        if (recipients.length === 0) {
-          showAlert("Geçerli telefon numarası bulunamadı", "warning")
-          return
-        }
-
-        // Onay al
-        const confirmed = confirm(
-          `${recipients.length} kişiye mesaj gönderilecek. Onaylıyor musunuz?`
-        )
-        if (!confirmed) return
-
-        // Butonu devre dışı bırak
-        this.disabled = true
-        this.innerHTML =
-          '<i class="fas fa-spinner fa-spin"></i> Gönderiliyor...'
-
-        // Mesajı gönder
-        const result = await window.electronAPI.sendMessages({
-          recipients: recipients,
-          message: message,
-        })
-
-        if (result.success) {
-          showAlert(
-            `✅ ${result.sentCount}/${result.totalCount} mesaj başarıyla gönderildi`,
-            "success"
-          )
-          document.getElementById("messageInput").value = ""
-        } else {
-          showAlert("Mesaj gönderme hatası: " + result.message, "error")
-        }
-      } catch (error) {
-        console.error("Mesaj gönderme hatası:", error)
-        showAlert("Mesaj gönderme sırasında hata oluştu", "error")
-      } finally {
-        // Butonu tekrar aktif et
-        const button = document.getElementById("sendMessage")
-        button.disabled = false
-        button.innerHTML = '<i class="fas fa-paper-plane"></i> Mesaj Gönder'
-      }
+    loginModal.addEventListener("hidden.bs.modal", function () {
+      document.body.classList.remove("modal-open")
     })
+  }
 }
 
 // Login işlemi
 async function handleLogin() {
-  const kurumkod = document.getElementById("kurumkod").value.trim()
-  const kullanici = document.getElementById("kullanici").value.trim()
-  const parola = document.getElementById("parola").value.trim()
-
-  if (!kurumkod || !kullanici || !parola) {
-    showError("Lütfen tüm alanları doldurun!")
-    return
-  }
-
   try {
+    const kurumkodElement = document.getElementById("kurumkod")
+    const kullaniciElement = document.getElementById("kullanici")
+    const parolaElement = document.getElementById("parola")
+    const rememberMeElement = document.getElementById("rememberMe")
+
+    if (!kurumkodElement || !kullaniciElement || !parolaElement) {
+      showError("Form elemanları bulunamadı")
+      return
+    }
+
+    const kurumkod = kurumkodElement.value.trim()
+    const kullanici = kullaniciElement.value.trim()
+    const parola = parolaElement.value.trim()
+    const rememberMe = rememberMeElement ? rememberMeElement.checked : false
+
+    if (!kurumkod || !kullanici || !parola) {
+      showError("Lütfen tüm alanları doldurun")
+      return
+    }
+
+    // Login butonunu devre dışı bırak
+    const loginBtn = document.getElementById("loginBtn")
+    if (loginBtn) {
+      loginBtn.disabled = true
+      loginBtn.innerHTML =
+        '<i class="fas fa-spinner fa-spin"></i> Giriş Yapılıyor...'
+    }
+
+    // Backend'e login isteği gönder
     const result = await ipcRenderer.invoke("kursmax-login", {
       kurumkod: kurumkod,
       kullanici: kullanici,
@@ -496,38 +601,60 @@ async function handleLogin() {
     })
 
     if (result.success) {
+      // Giriş bilgilerini hatırla
+      if (rememberMe) {
+        localStorage.setItem("kursmax_kurumkod", kurumkod)
+        localStorage.setItem("kursmax_kullanici", kullanici)
+        localStorage.setItem("kursmax_parola", parola)
+      } else {
+        localStorage.removeItem("kursmax_kurumkod")
+        localStorage.removeItem("kursmax_kullanici")
+        localStorage.removeItem("kursmax_parola")
+      }
+
       isLoggedIn = true
       showSuccess("Giriş başarılı!")
 
-      // Login modal'ını güvenli şekilde kapat
+      // Ana uygulamayı göster
+      const mainApp = document.getElementById("mainApp")
+      if (mainApp) {
+        mainApp.style.display = "block"
+        // Blur efektini kaldır
+        mainApp.style.filter = "none"
+        mainApp.style.pointerEvents = "auto"
+      }
+
+      // Login modalını kapat
       const loginModalElement = document.getElementById("loginModal")
       let loginModal = bootstrap.Modal.getInstance(loginModalElement)
       if (!loginModal) {
         loginModal = new bootstrap.Modal(loginModalElement)
       }
       loginModal.hide()
-      // Modal arka plan overlay'ini de kaldır
+
+      // Modal backdrop'ları temizle
       document.body.classList.remove("modal-open")
       const modalBackdrops = document.querySelectorAll(".modal-backdrop")
       modalBackdrops.forEach((el) => el.parentNode.removeChild(el))
 
-      // Ana uygulamayı göster
-      document.getElementById("mainApp").style.display = "block"
-
       // Login durumunu güncelle
       updateLoginStatus()
 
-      // Giriş bilgilerini kaydet
-      if (document.getElementById("rememberMe").checked) {
-        localStorage.setItem("kursmax_kurumkod", kurumkod)
-        localStorage.setItem("kursmax_kullanici", kullanici)
-        localStorage.setItem("kursmax_parola", parola)
-      }
+      // Sistem durumunu güncelle
+      updateSystemStatus()
     } else {
-      showError(result.message)
+      showError("Giriş başarısız: " + result.message)
     }
   } catch (error) {
-    showError("Giriş hatası: " + error.message)
+    console.error("Login hatası:", error)
+    showError("Giriş sırasında hata oluştu: " + error.message)
+  } finally {
+    // Login butonunu tekrar aktif et
+    const loginBtn = document.getElementById("loginBtn")
+    if (loginBtn) {
+      loginBtn.disabled = false
+      loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Giriş Yap'
+    }
   }
 }
 
@@ -729,11 +856,11 @@ function processData(result, messageType) {
     case "vade":
       data = result.vadeList || []
       columns = [
-        { key: "numara", title: "Numara" },
         { key: "ad", title: "Ad" },
         { key: "borc", title: "Borç" },
         { key: "gecikme", title: "Gecikme" },
-        { key: "annecep", title: "Anne Cep" },
+        { key: "annecep", title: "Anne Cep Tel." },
+        { key: "babacep", title: "Baba Cep Tel." },
       ]
       break
     case "sinav":
@@ -845,39 +972,50 @@ function renderDataTable(data, columns) {
 
 // Tablo event listener'larını ayarla
 function setupTableEventListeners() {
-  // Tümünü seç checkbox'ı
-  const selectAll = document.getElementById("selectAll")
-  if (selectAll) {
-    selectAll.addEventListener("change", function () {
-      const checkboxes = document.querySelectorAll(".row-checkbox")
-      checkboxes.forEach((checkbox) => {
-        checkbox.checked = this.checked
+  try {
+    // Tümünü seç checkbox'ı
+    const selectAll = document.getElementById("selectAll")
+    if (selectAll) {
+      selectAll.addEventListener("change", function () {
+        const checkboxes = document.querySelectorAll(".row-checkbox")
+        checkboxes.forEach((checkbox) => {
+          checkbox.checked = this.checked
+        })
+        updateSelectedStudents()
       })
-      updateSelectedStudents()
-    })
-  }
+    }
 
-  // Satır checkbox'ları
-  const rowCheckboxes = document.querySelectorAll(".row-checkbox")
-  rowCheckboxes.forEach((checkbox) => {
-    checkbox.addEventListener("change", updateSelectedStudents)
-  })
+    // Satır checkbox'ları
+    const rowCheckboxes = document.querySelectorAll(".row-checkbox")
+    rowCheckboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", updateSelectedStudents)
+    })
+  } catch (error) {
+    console.error("setupTableEventListeners hatası:", error)
+  }
 }
 
 // Seçili öğrencileri güncelle
 function updateSelectedStudents() {
-  const checkboxes = document.querySelectorAll(".row-checkbox:checked")
-  selectedStudents = []
+  try {
+    const checkboxes = document.querySelectorAll(".row-checkbox:checked")
+    selectedStudents = []
 
-  checkboxes.forEach((checkbox) => {
-    const row = checkbox.closest("tr")
-    const index = parseInt(row.dataset.index)
-    if (currentData[index]) {
-      selectedStudents.push(currentData[index])
-    }
-  })
+    checkboxes.forEach((checkbox) => {
+      const row = checkbox.closest("tr")
+      if (!row) return
 
-  updateSendButtonState()
+      const index = parseInt(row.dataset.index)
+      if (!isNaN(index) && currentData[index]) {
+        selectedStudents.push(currentData[index])
+      }
+    })
+
+    updateSendButtonState()
+  } catch (error) {
+    console.error("updateSelectedStudents hatası:", error)
+    selectedStudents = []
+  }
 }
 
 // Mesaj türü değişikliği
@@ -902,72 +1040,107 @@ function handleMessageTypeChange(event) {
 
 // Mesaj gönderme işlemi
 async function handleSendMessages() {
-  if (selectedStudents.length === 0) {
-    showError("Lütfen en az bir öğrenci seçin!")
-    return
-  }
-
-  const message = document.getElementById("message-text").value.trim()
-  if (!message) {
-    showError("Lütfen mesaj yazın!")
-    return
-  }
-
-  const sendStudent = document.getElementById("send-student").checked
-  const sendMother = document.getElementById("send-mother").checked
-  const sendFather = document.getElementById("send-father").checked
-
-  if (!sendStudent && !sendMother && !sendFather) {
-    showError("Lütfen en az bir alıcı seçin!")
-    return
-  }
-
   try {
-    const recipients = []
+    if (!preparedMessages || preparedMessages.length === 0) {
+      showError("Gönderilecek mesaj bulunamadı")
+      return
+    }
 
-    selectedStudents.forEach((student) => {
-      if (sendStudent && student.ceptel) {
-        recipients.push({
-          name: `${student.ad} ${student.soyad}`,
-          phone: student.ceptel,
-        })
-      }
-      if (sendMother && student.annecep) {
-        recipients.push({
-          name: `${student.ad} ${student.soyad} (Anne)`,
-          phone: student.annecep,
-        })
-      }
-      if (sendFather && student.babacep) {
-        recipients.push({
-          name: `${student.ad} ${student.soyad} (Baba)`,
-          phone: student.babacep,
-        })
-      }
-    })
+    // Gönder butonunu devre dışı bırak
+    const sendButton = document.getElementById("sendPreparedMessages")
+    if (sendButton) {
+      sendButton.disabled = true
+      sendButton.innerHTML =
+        '<i class="fas fa-spinner fa-spin"></i> Gönderiliyor...'
+    }
 
-    const result = await ipcRenderer.invoke("send-messages", {
-      recipients: recipients,
-      message: message,
-    })
+    const failedMessages = []
+    let successCount = 0
 
-    if (result.success) {
-      showSuccess(`${result.sentCount} mesaj başarıyla gönderildi`)
-      renderFailedMessages(result.failed)
-    } else {
-      showError(result.message)
-      if (result.failed && result.failed.length > 0) {
-        renderFailedMessages(result.failed)
+    // Her mesajı sırayla gönder
+    for (let i = 0; i < preparedMessages.length; i++) {
+      const message = preparedMessages[i]
+
+      try {
+        console.log(`Mesaj gönderiliyor: ${i + 1}/${preparedMessages.length}`)
+
+        const result = await ipcRenderer.invoke("send-whatsapp-message", {
+          phoneNumber: message.phone,
+          message: message.message,
+        })
+
+        if (result.success) {
+          successCount++
+          console.log(`✅ Mesaj gönderildi: ${message.phone}`)
+        } else {
+          failedMessages.push({
+            phone: message.phone,
+            name: message.recipientName || message.name,
+            error: result.message,
+          })
+          console.log(
+            `❌ Mesaj gönderilemedi: ${message.phone} - ${result.message}`
+          )
+        }
+
+        // Mesajlar arası kısa bekleme (WhatsApp'ın robot algılamasını önlemek için)
+        if (i < preparedMessages.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+        }
+      } catch (error) {
+        failedMessages.push({
+          phone: message.phone,
+          name: message.recipientName || message.name,
+          error: error.message,
+        })
+        console.error(
+          `❌ Mesaj gönderme hatası: ${message.phone} - ${error.message}`
+        )
       }
     }
+
+    // Gönder butonunu tekrar aktif et
+    if (sendButton) {
+      sendButton.disabled = false
+      sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Tümünü Gönder'
+    }
+
+    // Sonuçları göster
+    if (successCount > 0) {
+      showSuccess(`${successCount} mesaj başarıyla gönderildi`)
+    }
+
+    if (failedMessages.length > 0) {
+      renderFailedMessages(failedMessages)
+      showError(`${failedMessages.length} mesaj gönderilemedi`)
+    }
+
+    // Mesajlar gönderildikten sonra hazırlanan mesajları temizle
+    if (successCount > 0) {
+      clearPreparedMessages()
+    }
   } catch (error) {
-    showError("Mesaj gönderme hatası: " + error.message)
+    console.error("Mesaj gönderme hatası:", error)
+    showError("Mesaj gönderme sırasında hata oluştu: " + error.message)
+
+    // Hata durumunda da gönder butonunu tekrar aktif et
+    const sendButton = document.getElementById("sendPreparedMessages")
+    if (sendButton) {
+      sendButton.disabled = false
+      sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Tümünü Gönder'
+    }
   }
 }
 
 // Gönderilemeyen mesajları göster
 function renderFailedMessages(failedList) {
   const container = document.getElementById("failed-messages-list")
+
+  // Container kontrolü
+  if (!container) {
+    console.warn("failed-messages-list container bulunamadı")
+    return
+  }
 
   if (!failedList || failedList.length === 0) {
     container.innerHTML =
@@ -977,7 +1150,9 @@ function renderFailedMessages(failedList) {
 
   let html = ""
   failedList.forEach((item) => {
-    html += `<li class="list-group-item text-danger">${item.name} (${item.phone})</li>`
+    const name = item.name || "Bilinmeyen"
+    const phone = item.phone || "Telefon yok"
+    html += `<li class="list-group-item text-danger">${name} (${phone})</li>`
   })
 
   container.innerHTML = html
@@ -985,22 +1160,44 @@ function renderFailedMessages(failedList) {
 
 // Gönder butonunun durumunu güncelle
 function updateSendButtonState() {
-  const sendBtn = document.getElementById("send-messages")
-  const messageText = document.getElementById("message-text").value.trim()
+  const sendBtn = document.getElementById("sendPreparedMessages")
+  const messageTypeElement = document.getElementById("messageType")
+  const customMessageElement = document.getElementById("customMessage")
+
+  // Element kontrolü
+  if (!sendBtn) return
+
+  let messageText = ""
+  if (
+    messageTypeElement &&
+    messageTypeElement.value === "custom" &&
+    customMessageElement
+  ) {
+    messageText = customMessageElement.value.trim()
+  }
 
   const hasSelection = selectedStudents.length > 0
   const hasMessage = messageText.length > 0
-  const hasRecipient =
-    document.getElementById("send-student").checked ||
-    document.getElementById("send-mother").checked ||
-    document.getElementById("send-father").checked
+  const hasPreparedMessages = preparedMessages.length > 0
 
-  sendBtn.disabled = !(
-    hasSelection &&
-    hasMessage &&
-    hasRecipient &&
-    whatsappStatus === "connected"
+  // Güvenli alıcı kontrolü - targetAudience radio button'larını kullan
+  const targetAudienceElement = document.querySelector(
+    'input[name="targetAudience"]:checked'
   )
+  const hasRecipient = targetAudienceElement !== null
+
+  // Eğer hazırlanmış mesajlar varsa, onları göster
+  if (hasPreparedMessages) {
+    sendBtn.disabled = !(hasPreparedMessages && whatsappStatus === "connected")
+  } else {
+    // Eğer hazırlanmış mesaj yoksa, mesaj hazırlama koşullarını kontrol et
+    sendBtn.disabled = !(
+      hasSelection &&
+      hasMessage &&
+      hasRecipient &&
+      whatsappStatus === "connected"
+    )
+  }
 }
 
 // Puppeteer durum dinleyicisi
@@ -1008,6 +1205,11 @@ function setupPuppeteerListener() {
   ipcRenderer.on("whatsapp-status-update", (event, data) => {
     updateWhatsAppStatus(data.status)
     updateSystemStatus()
+
+    // WhatsApp numarasını güncelle
+    if (data.number !== undefined) {
+      updateWhatsAppNumber(data.number)
+    }
 
     // Eğer mesaj varsa göster
     if (data.message) {
@@ -1022,15 +1224,21 @@ function setupPuppeteerListener() {
 
 // Sistem durumunu güncelle
 function updateSystemStatus() {
-  const now = new Date().toLocaleTimeString("tr-TR")
-  document.getElementById("last-update").textContent = now
+  const lastUpdateElement = document.getElementById("last-update")
+  const whatsappStatusSmall = document.getElementById("whatsapp-status-small")
+
+  if (lastUpdateElement) {
+    const now = new Date().toLocaleTimeString("tr-TR")
+    lastUpdateElement.textContent = now
+  }
 
   // WhatsApp durumu
-  const whatsappStatusSmall = document.getElementById("whatsapp-status-small")
-  whatsappStatusSmall.textContent =
-    whatsappStatus === "connected" ? "Bağlı" : "Bağlanıyor"
-  whatsappStatusSmall.className =
-    whatsappStatus === "connected" ? "badge bg-success" : "badge bg-warning"
+  if (whatsappStatusSmall) {
+    whatsappStatusSmall.textContent =
+      whatsappStatus === "connected" ? "Bağlı" : "Bağlanıyor"
+    whatsappStatusSmall.className =
+      whatsappStatus === "connected" ? "badge bg-success" : "badge bg-warning"
+  }
 }
 
 // WhatsApp durumunu güncelle
@@ -1038,6 +1246,20 @@ function updateWhatsAppStatus(status) {
   whatsappStatus = status
   updateSystemStatus()
   updateSendButtonState()
+}
+
+// WhatsApp numarasını güncelle
+function updateWhatsAppNumber(number) {
+  const numberElement = document.getElementById("whatsapp-number")
+  if (numberElement) {
+    if (number) {
+      numberElement.textContent = number
+      numberElement.className = "text-success small"
+    } else {
+      numberElement.textContent = "Bağlanıyor..."
+      numberElement.className = "text-muted small"
+    }
+  }
 }
 
 // Başarı mesajı göster
@@ -1050,20 +1272,6 @@ function showSuccess(message) {
 function showError(message) {
   // Basit alert yerine daha güzel bir bildirim sistemi kullanılabilir
   alert("❌ " + message)
-}
-
-// Test handler'ı çağır
-async function handleTestHandler() {
-  try {
-    const result = await ipcRenderer.invoke("test-handler")
-    if (result.success) {
-      showSuccess("Test handler çalışıyor: " + result.message)
-    } else {
-      showError(result.message)
-    }
-  } catch (error) {
-    showError("Test handler hatası: " + error.message)
-  }
 }
 
 // WhatsApp durum kontrolü
@@ -1094,22 +1302,6 @@ async function handleRefreshWhatsApp() {
   }
 }
 
-// WhatsApp bağlantısını yeniden başlat
-async function handleRestartWhatsApp() {
-  try {
-    const result = await ipcRenderer.invoke("restart-whatsapp")
-    if (result.success) {
-      showSuccess("WhatsApp bağlantısı yeniden başlatıldı")
-      // Durumu güncelle
-      updateWhatsAppStatus(result.status)
-    } else {
-      showError(result.message)
-    }
-  } catch (error) {
-    showError("WhatsApp yeniden başlatma hatası: " + error.message)
-  }
-}
-
 // Puppeteer WhatsApp durumunu kontrol et
 async function checkPuppeteerWhatsAppStatus() {
   try {
@@ -1127,7 +1319,6 @@ function getSelectedStudents() {
   const selectedStudents = []
 
   try {
-    // Doğru tablo selector'ını kullan
     const checkboxes = document.querySelectorAll(
       '#studentsTable tbody input[type="checkbox"]:checked'
     )
@@ -1136,25 +1327,10 @@ function getSelectedStudents() {
       const row = checkbox.closest("tr")
       if (!row) return
 
-      const cells = row.querySelectorAll("td")
-      if (cells.length < 9) return // En az 9 hücre olmalı
-
-      // Güvenli hücre erişimi
-      const student = {
-        numara: cells[1] ? cells[1].textContent.trim() : "",
-        sinif: cells[2] ? cells[2].textContent.trim() : "",
-        ad: cells[3] ? cells[3].textContent.trim() : "",
-        soyad: cells[4] ? cells[4].textContent.trim() : "",
-        ceptel: cells[5] ? cells[5].textContent.trim() : "",
-        annecep: cells[6] ? cells[6].textContent.trim() : "",
-        babacep: cells[7] ? cells[7].textContent.trim() : "",
-        seviye: cells[8] ? cells[8].textContent.trim() : "",
-        parola: cells[9] ? cells[9].textContent.trim() : "",
-      }
-
-      // Geçerli veri kontrolü
-      if (student.ad && student.soyad) {
-        selectedStudents.push(student)
+      const index = parseInt(row.dataset.index)
+      if (!isNaN(index) && currentData[index]) {
+        // Tüm tablo tipleri için columns sırasına göre veri çek
+        selectedStudents.push(currentData[index])
       }
     })
   } catch (error) {
@@ -1164,46 +1340,18 @@ function getSelectedStudents() {
   return selectedStudents
 }
 
-// Seçili alıcıları göster
-function updateSelectedRecipients() {
-  const selectedStudents = getSelectedStudents()
-  const container = document.getElementById("selectedRecipients")
-
-  if (selectedStudents.length === 0) {
-    container.innerHTML = '<small class="text-muted">Seçili alıcı yok</small>'
-    return
-  }
-
-  const targetAudience = document.querySelector(
-    'input[name="targetAudience"]:checked'
-  ).value
-  let audienceText = ""
-
-  switch (targetAudience) {
-    case "student":
-      audienceText = "Öğrenci"
-      break
-    case "mother":
-      audienceText = "Anne"
-      break
-    case "father":
-      audienceText = "Baba"
-      break
-  }
-
-  container.innerHTML = `
-    <small class="text-success">${selectedStudents.length} öğrenci seçildi</small><br>
-    <small class="text-muted">Hedef: ${audienceText} telefonları</small>
-  `
-}
-
-// Öğrenci seçimi değiştiğinde alıcı listesini güncelle
+// Öğrenci seçimi değiştiğinde buton durumunu güncelle
 document.addEventListener("change", function (e) {
-  if (e.target.type === "checkbox" && e.target.closest("#studentsTable")) {
-    updateSelectedRecipients()
-  }
+  try {
+    if (e.target.type === "checkbox" && e.target.closest("#studentsTable")) {
+      updateSelectedStudents()
+      updateSendButtonState()
+    }
 
-  if (e.target.name === "targetAudience") {
-    updateSelectedRecipients()
+    if (e.target.name === "targetAudience") {
+      updateSendButtonState()
+    }
+  } catch (error) {
+    console.error("Change event listener hatası:", error)
   }
 })

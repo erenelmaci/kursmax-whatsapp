@@ -232,12 +232,6 @@ app.on("before-quit", async () => {
 
 // ===== IPC HANDLERS - Tüm handler'lar burada tanımlanır =====
 
-// Test handler
-ipcMain.handle("test-handler", async (event) => {
-  console.log("Test handler çalışıyor...")
-  return { success: true, message: "Test handler çalışıyor" }
-})
-
 // KursMax Login
 ipcMain.handle("kursmax-login", async (event, credentials) => {
   const result = await kursmaxLogin(
@@ -281,40 +275,6 @@ ipcMain.handle("check-whatsapp-status", async (event) => {
       success: false,
       status: "error",
       message: error.message,
-    }
-  }
-})
-
-// WhatsApp bağlantısını yeniden başlat
-ipcMain.handle("restart-whatsapp", async (event) => {
-  try {
-    console.log("WhatsApp bağlantısı yeniden başlatılıyor...")
-
-    if (browser) {
-      try {
-        await browser.close()
-        console.log("Eski browser kapatıldı")
-      } catch (error) {
-        console.log("Browser kapatma hatası:", error.message)
-      }
-    }
-
-    browser = null
-    page = null
-    whatsappStatus = "disconnected"
-
-    await initializePuppeteer()
-
-    return {
-      success: true,
-      message: "WhatsApp bağlantısı yeniden başlatıldı",
-      status: whatsappStatus,
-    }
-  } catch (error) {
-    console.error("WhatsApp yeniden başlatma hatası:", error)
-    return {
-      success: false,
-      message: "WhatsApp yeniden başlatılamadı: " + error.message,
     }
   }
 })
@@ -404,6 +364,7 @@ ipcMain.handle("get-devam-list", async (event) => {
 // Vade Listesi
 ipcMain.handle("get-vade-list", async (event) => {
   const result = await fetchKursmaxData(KURSMAX_API.VADE_LIST)
+  console.log(result)
   if (result.success) {
     const $ = cheerio.load(result.data)
     const vadeList = []
@@ -412,13 +373,13 @@ ipcMain.handle("get-vade-list", async (event) => {
       const cells = $(row).find("td")
       if (cells.length >= 4) {
         const vade = {
-          numara: $(cells[0]).text().trim(),
-          ad: $(cells[1]).text().trim(),
-          borc: $(cells[2]).text().trim(),
-          gecikme: $(cells[3]).text().trim(),
-          annecep: cells.length > 4 ? $(cells[4]).text().trim() : "",
+          ad: $(cells[0]).text().trim(),
+          borc: $(cells[1]).text().trim(),
+          gecikme: $(cells[2]).text().trim(),
+          annecep: $(cells[3]).text().trim(),
+          babacep: cells.length > 4 ? $(cells[4]).text().trim() : "",
         }
-        if (vade.numara && vade.ad) {
+        if (vade.ad && vade.borc) {
           vadeList.push(vade)
         }
       }
@@ -671,136 +632,120 @@ ipcMain.handle("create-auto-messages", async (event, data) => {
     console.log("Mesaj tipi:", messageType)
     console.log("Hedef kitle:", targetAudience)
     console.log("Öğrenci sayısı:", students.length)
+    if (students && students.length > 0) {
+      console.log("İlk öğrenci objesi ve field'ları:", students[0])
+      console.log("Tüm field isimleri:", Object.keys(students[0]))
+    }
 
     const messages = []
 
     for (const student of students) {
-      let phone = ""
-      let recipientName = ""
-
-      // Hedef kitleye göre telefon numarası seç
-      switch (targetAudience) {
-        case "student":
-          phone = student.ceptel || ""
-          recipientName = `${student.ad} ${student.soyad} - Öğrenci Cep Tel`
-          break
-        case "mother":
-          phone = student.annecep || ""
-          recipientName = `${student.ad} ${student.soyad} - Anne Cep Tel`
-          break
-        case "father":
-          phone = student.babacep || ""
-          recipientName = `${student.ad} ${student.soyad} - Baba Cep Tel`
-          break
-        default:
+      // Birden fazla hedef kitle için döngü
+      const audiences = Array.isArray(targetAudience)
+        ? targetAudience
+        : [targetAudience]
+      for (const audience of audiences) {
+        let phone = ""
+        let recipientName = ""
+        switch (audience) {
+          case "student":
+            phone = student.ceptel || ""
+            recipientName = `${student.ad} ${student.soyad} - Öğrenci Cep Tel`
+            break
+          case "mother":
+            phone = student.annecep || ""
+            recipientName = `${student.ad} ${student.soyad} - Anne Cep Tel`
+            break
+          case "father":
+            phone = student.babacep || ""
+            recipientName = `${student.ad} ${student.soyad} - Baba Cep Tel`
+            break
+          default:
+            continue
+        }
+        if (!phone || phone.trim().length !== 10) {
+          console.log(
+            `⚠️ ${student.ad} ${student.soyad} - Geçersiz telefon: ${phone}`
+          )
           continue
-      }
-
-      // Geçerli telefon numarası kontrolü
-      if (!phone || phone.trim().length !== 10) {
-        console.log(
-          `⚠️ ${student.ad} ${student.soyad} - Geçersiz telefon: ${phone}`
-        )
-        continue
-      }
-
-      let message = ""
-
-      // Mesaj tipine göre şablon oluştur
-      switch (messageType) {
-        case "custom":
-          // Serbest mesaj
-          message = customMessage
-          break
-
-        case "absence":
-          // Devamsızlık bildirimi
-          message = `Değerli Velimiz , Öğrenciniz : ${student.ad} ${
-            student.soyad
-          }, ${
-            student.ders || "ders"
-          } Dersine Bu Saat İtibariyle Katılmamıştır. Bilgilerinize Sunulur.`
-          break
-
-        case "overdue":
-          // Vadesi geçen borç bildirimi
-          message = `Değerli Velimiz , Öğrenciniz : ${
-            student.ad
-          } için Toplam : ${student.borc || "0"} TL. Vadesi Ortalama : ${
-            student.gecikme || "0"
-          } Gün Gecikmiş Ödemeniz Bulunmaktadır. Bilgilerinize Sunulur.`
-          break
-
-        case "exam_card":
-          // Sınav karnesi
-          const examType = examInfo.type || "TYT"
-          let karneUrl = ""
-
-          switch (examType) {
-            case "TYT":
-              karneUrl = `${KURSMAX_API.OGRENCI_KARNE_TYT}?kod=${kursmaxCredentials.kurumkod}&sno=${examInfo.examNo}&ogno=${student.numara}&pno=${student.parola}&svy=${student.seviye}`
-              break
-            case "AYT":
-              karneUrl = `${KURSMAX_API.OGRENCI_KARNE_AYT}?kod=${kursmaxCredentials.kurumkod}&sno=${examInfo.examNo}&ogno=${student.numara}&pno=${student.parola}&svy=${student.seviye}`
-              break
-            case "LGS":
-              karneUrl = `${KURSMAX_API.OGRENCI_KARNE_LGS}?kod=${kursmaxCredentials.kurumkod}&sno=${examInfo.examNo}&ogno=${student.numara}&pno=${student.parola}&svy=${student.seviye}`
-              break
-            case "ODS":
-              karneUrl = `${KURSMAX_API.OGRENCI_KARNE_ODS}?kod=${kursmaxCredentials.kurumkod}&sno=${examInfo.examNo}&ogno=${student.numara}&pno=${student.parola}&svy=${student.seviye}`
-              break
-          }
-
-          message = `${
-            examInfo.examName || "Deneme"
-          } sınav karneniz için verilen bağlantıya tıklayın ${karneUrl}`
-          break
-
-        case "login_info":
-          // Giriş bilgileri
-          message = `Merhabalar, Öğrencimizin devamsızlık , ders programı ve tüm sınav sonuçlarına erişim için kursmax.com öğrenci takip panelinize girişte kullanacağınız Öğrenci Numaranız: ${student.numara} ve Parolanız : ${student.parola}`
-          break
-
-        case "schedule":
-          // Ders programı
-          const programUrl = `${KURSMAX_API.OGRENCI_PROGRAM}?kod=${kursmaxCredentials.kurumkod}&ogno=${student.numara}`
-          message = `Merhabalar, Öğrencinizin Haftalık Ders Programını Öğrenmek İçin Verilen Bağlantıya Tıklayın : ${programUrl}`
-          break
-
-        case "payment":
-          // Tahsilat bildirimi
-          const kalanBorc = student.kalanborc || "0"
-          const vadeGecen = student.gecikme || "0"
-          const sonrakiOdeme = student.sonrakiodeme || "0"
-
-          message = `Değerli velimiz, ${paymentDate} tarihinde işlenen ${
-            student.tahsilat || "0"
-          } TL. ödemeniz için teşekkür ederiz. Toplam kalan borcunuz ${kalanBorc} TL dir.`
-
-          if (parseFloat(kalanBorc) > 0) {
-            message += ` Bugün itibari ile vadesi geçen borcunuz ${vadeGecen} TL dir.`
-
-            if (parseFloat(sonrakiOdeme) > 0) {
-              message += ` Bir sonraki taksit ödemeniz ${
-                student.sonrakiodemeTarih || ""
-              } tarihinde ${sonrakiOdeme} TL dir.`
+        }
+        let message = ""
+        switch (messageType) {
+          case "custom":
+            message = customMessage
+            break
+          case "absence":
+            message = `Değerli Velimiz , Öğrenciniz : ${student.ad} ${
+              student.soyad
+            }, ${
+              student.ders || "ders"
+            } Dersine Bu Saat İtibariyle Katılmamıştır. Bilgilerinize Sunulur.`
+            break
+          case "overdue":
+            message = `Değerli Velimiz , Öğrenciniz : ${
+              student.ad
+            } için Toplam : ${student.borc || "0"} TL. Vadesi Ortalama : ${
+              student.gecikme || "0"
+            } Gün Gecikmiş Ödemeniz Bulunmaktadır. Bilgilerinize Sunulur.`
+            break
+          case "exam_card":
+            const examType = examInfo.type || "TYT"
+            let karneUrl = ""
+            switch (examType) {
+              case "TYT":
+                karneUrl = `${KURSMAX_API.OGRENCI_KARNE_TYT}?kod=${kursmaxCredentials.kurumkod}&sno=${examInfo.examNo}&ogno=${student.numara}&pno=${student.parola}&svy=${student.seviye}`
+                break
+              case "AYT":
+                karneUrl = `${KURSMAX_API.OGRENCI_KARNE_AYT}?kod=${kursmaxCredentials.kurumkod}&sno=${examInfo.examNo}&ogno=${student.numara}&pno=${student.parola}&svy=${student.seviye}`
+                break
+              case "LGS":
+                karneUrl = `${KURSMAX_API.OGRENCI_KARNE_LGS}?kod=${kursmaxCredentials.kurumkod}&sno=${examInfo.examNo}&ogno=${student.numara}&pno=${student.parola}&svy=${student.seviye}`
+                break
+              case "ODS":
+                karneUrl = `${KURSMAX_API.OGRENCI_KARNE_ODS}?kod=${kursmaxCredentials.kurumkod}&sno=${examInfo.examNo}&ogno=${student.numara}&pno=${student.parola}&svy=${student.seviye}`
+                break
             }
-          }
-          break
-
-        default:
-          console.log(`⚠️ Bilinmeyen mesaj tipi: ${messageType}`)
-          continue
+            message = `${
+              examInfo.examName || "Deneme"
+            } sınav karneniz için verilen bağlantıya tıklayın ${karneUrl}`
+            break
+          case "login_info":
+            message = `Merhabalar, Öğrencimizin devamsızlık , ders programı ve tüm sınav sonuçlarına erişim için kursmax.com öğrenci takip panelinize girişte kullanacağınız Öğrenci Numaranız: ${student.numara} ve Parolanız : ${student.parola}`
+            break
+          case "schedule":
+            const programUrl = `${KURSMAX_API.OGRENCI_PROGRAM}?kod=${kursmaxCredentials.kurumkod}&ogno=${student.numara}`
+            message = `Merhabalar, Öğrencinizin Haftalık Ders Programını Öğrenmek İçin Verilen Bağlantıya Tıklayın : ${programUrl}`
+            break
+          case "payment":
+            const kalanBorc = student.kalanborc || "0"
+            const vadeGecen = student.gecikme || "0"
+            const sonrakiOdeme = student.sonrakiodeme || "0"
+            message = `Değerli velimiz, ${paymentDate} tarihinde işlenen ${
+              student.tahsilat || "0"
+            } TL. ödemeniz için teşekkür ederiz. Toplam kalan borcunuz ${kalanBorc} TL dir.`
+            if (parseFloat(kalanBorc) > 0) {
+              message += ` Bugün itibari ile vadesi geçen borcunuz ${vadeGecen} TL dir.`
+              if (parseFloat(sonrakiOdeme) > 0) {
+                message += ` Bir sonraki taksit ödemeniz ${
+                  student.sonrakiodemeTarih || ""
+                } tarihinde ${sonrakiOdeme} TL dir.`
+              }
+            }
+            break
+          default:
+            console.log(`⚠️ Bilinmeyen mesaj tipi: ${messageType}`)
+            continue
+        }
+        messages.push({
+          name: `${student.ad} ${student.soyad}`,
+          phone: phone,
+          message: message,
+          recipientName: recipientName,
+        })
+        console.log(
+          `✅ ${student.ad} ${student.soyad} - ${audience} için mesaj hazırlandı`
+        )
       }
-
-      messages.push({
-        name: `${student.ad} ${student.soyad}`,
-        phone: phone,
-        message: message,
-        recipientName: recipientName,
-      })
-
-      console.log(`✅ ${student.ad} ${student.soyad} - Mesaj hazırlandı`)
     }
 
     console.log(`📊 Toplam ${messages.length} mesaj hazırlandı`)
@@ -892,105 +837,65 @@ async function checkWhatsAppStatus() {
       return
     }
 
-    // Daha güvenilir WhatsApp durum kontrolü
-    const status = await page.evaluate(() => {
-      console.log("WhatsApp durumu kontrol ediliyor...")
-
-      // 1. QR kod kontrolü - en güvenilir yöntem
+    // Daha sağlam WhatsApp durum kontrolü
+    const result = await page.evaluate(() => {
+      // 1. QR kod kontrolü
       const qrCanvas = document.querySelector("canvas")
-      if (qrCanvas) {
-        console.log("QR kod bulundu - giriş gerekli")
-        return "qr_required"
-      }
+      if (qrCanvas) return { status: "qr_required", number: null }
 
-      // 2. WhatsApp Web'in ana uygulama div'ini kontrol et
+      // 2. Sohbet/mesaj/chat anahtar kelimeleri ve ana elementler
       const appDiv = document.querySelector('div[data-testid="app"]')
-      if (appDiv) {
-        console.log("WhatsApp Web uygulaması bulundu")
-        return "connected"
-      }
-
-      // 3. Chat listesi veya mesaj alanı kontrolü
       const chatList = document.querySelector('div[data-testid="chat-list"]')
       const messageBox = document.querySelector(
         'div[data-testid="conversation-compose-box-input"]'
       )
-      const searchBox = document.querySelector(
-        'div[data-testid="chat-list-search"]'
+      const conversationHeader = document.querySelector(
+        'div[data-testid="conversation-header"]'
       )
+      const bodyText = document.body.innerText.toLowerCase()
 
-      if (chatList || messageBox || searchBox) {
-        console.log("Chat bileşenleri bulundu - bağlı")
-        return "connected"
+      if (
+        appDiv ||
+        chatList ||
+        messageBox ||
+        conversationHeader ||
+        bodyText.includes("sohbet") ||
+        bodyText.includes("mesaj") ||
+        bodyText.includes("chat")
+      ) {
+        return { status: "connected", number: null }
       }
 
-      // 4. URL kontrolü
-      if (window.location.href.includes("web.whatsapp.com")) {
-        // Sayfa yükleniyor mu kontrol et
-        const loadingElements = document.querySelectorAll(
-          '.loading, .spinner, [data-testid="loading"]'
-        )
-        if (loadingElements.length > 0) {
-          console.log("Sayfa yükleniyor...")
-          return "loading"
-        }
-
-        // QR kod metni kontrolü
-        const bodyText = document.body.innerText.toLowerCase()
-        if (
-          bodyText.includes("qr") ||
-          bodyText.includes("kodu") ||
-          bodyText.includes("telefon")
-        ) {
-          console.log("QR kod metni bulundu")
-          return "qr_required"
-        }
-
-        // Giriş yapılmış metin kontrolü
-        if (
-          bodyText.includes("sohbet") ||
-          bodyText.includes("chat") ||
-          bodyText.includes("mesaj")
-        ) {
-          console.log("Giriş yapılmış - metin kontrolü")
-          return "connected"
-        }
+      // 3. Yükleniyor kontrolü
+      const loadingElements = document.querySelectorAll(
+        '.loading, .spinner, [data-testid="loading"]'
+      )
+      if (loadingElements.length > 0) {
+        return { status: "loading", number: null }
       }
 
-      console.log("Durum belirlenemedi")
-      return "disconnected"
+      // 4. QR kod metni kontrolü
+      if (
+        bodyText.includes("qr") ||
+        bodyText.includes("kodu") ||
+        bodyText.includes("telefon")
+      ) {
+        return { status: "qr_required", number: null }
+      }
+
+      return { status: "disconnected", number: null }
     })
 
-    // Eğer durum disconnected ise ve daha önce connected ise, otomatik yeniden başlat
-    if (status === "disconnected" && whatsappStatus === "connected") {
-      console.log(
-        "WhatsApp bağlantısı kesildi, otomatik yeniden başlatılıyor..."
-      )
-
-      // Renderer'a bildir
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("whatsapp-status-update", {
-          status: "disconnected",
-          message: "WhatsApp bağlantısı kesildi, yeniden başlatılıyor...",
-        })
-      }
-
-      // 5 saniye bekle ve yeniden başlat
-      setTimeout(async () => {
-        try {
-          await handleRestartWhatsApp()
-        } catch (error) {
-          console.error("Otomatik yeniden başlatma hatası:", error)
-        }
-      }, 5000)
-    }
+    const status = result.status
+    const whatsappNumber = result.number
 
     whatsappStatus = status
-    console.log("WhatsApp durumu:", status)
-
     // Durumu renderer'a bildir
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("whatsapp-status-update", { status: status })
+      mainWindow.webContents.send("whatsapp-status-update", {
+        status: status,
+        number: whatsappNumber,
+      })
     }
   } catch (error) {
     console.error("WhatsApp durum kontrolü hatası:", error)
@@ -998,69 +903,164 @@ async function checkWhatsAppStatus() {
   }
 }
 
-// Otomatik yeniden başlatma için yardımcı fonksiyon
-async function handleRestartWhatsApp() {
-  try {
-    console.log("WhatsApp bağlantısı yeniden başlatılıyor...")
-
-    if (browser) {
-      try {
-        await browser.close()
-        console.log("Eski browser kapatıldı")
-      } catch (error) {
-        console.log("Browser kapatma hatası:", error.message)
-      }
-    }
-
-    browser = null
-    page = null
-    whatsappStatus = "disconnected"
-
-    await initializePuppeteer()
-
-    return {
-      success: true,
-      message: "WhatsApp bağlantısı yeniden başlatıldı",
-      status: whatsappStatus,
-    }
-  } catch (error) {
-    console.error("WhatsApp yeniden başlatma hatası:", error)
-    return {
-      success: false,
-      message: "WhatsApp yeniden başlatılamadı: " + error.message,
-    }
-  }
-}
-
-// WhatsApp mesaj gönderme fonksiyonu (Puppeteer ile)
+// WhatsApp mesaj gönderme fonksiyonu (C# projesindeki mantıkla)
 async function sendWhatsAppMessage(phoneNumber, message) {
   try {
     if (!page) throw new Error("Puppeteer sayfası bulunamadı")
 
     const formattedPhone = phoneNumber.replace(/^"+/, "").replace(/\s/g, "")
-    const encodedMessage = encodeURIComponent(message)
-
     console.log(`📱 ${phoneNumber} numarasına mesaj gönderiliyor...`)
 
-    // 1. Doğrudan sohbet başlatan URL'ye git
-    await page.goto(
-      `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`,
-      {
-        waitUntil: "networkidle2",
-        timeout: 30000,
+    // C# projesindeki gibi WhatsApp Web'e git
+    await page.goto("https://web.whatsapp.com/", {
+      waitUntil: "networkidle2",
+      timeout: 30000,
+    })
+    console.log("WhatsApp Web açıldı")
+
+    // Sayfanın yüklenmesini bekle
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+
+    // C# projesindeki gibi numara arama kutusu seçicileri
+    const phoneInputSelectors = [
+      '[data-testid="chat-list-search"]',
+      'div[contenteditable="true"][data-tab="3"]',
+      'input[placeholder*="Ara"]',
+      'input[placeholder*="Search"]',
+      'div[contenteditable="true"]',
+      ".selectable-text.copyable-text",
+      '[data-testid="conversation-search"]',
+    ]
+
+    // 1. Numara arama kutusunu bul
+    let phoneInput = null
+    for (const selector of phoneInputSelectors) {
+      try {
+        await page.waitForSelector(selector, { timeout: 3000 })
+        phoneInput = await page.$(selector)
+        if (phoneInput) {
+          console.log("Numara arama kutusu bulundu:", selector)
+          break
+        }
+      } catch (e) {
+        console.log("Numara arama kutusu bulunamadı:", selector)
       }
-    )
-    console.log("Sohbet sayfasına gidildi")
+    }
 
-    // 2. Sayfanın yüklenmesini bekle
-    await page.waitForTimeout(3000)
+    if (!phoneInput) {
+      throw new Error("Numara arama kutusu bulunamadı")
+    }
 
-    // 3. Mesaj kutusunu bul ve kontrol et
+    // 2. C# projesindeki gibi önce Escape bas, sonra numara yaz, sonra Enter
+    console.log("Numara yazılıyor:", formattedPhone)
+    await phoneInput.focus()
+    await page.keyboard.press("Escape")
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await phoneInput.type(formattedPhone, { delay: 100 })
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await page.keyboard.press("Enter")
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    // 3. Eğer numara bulunamadıysa, yeni sohbet başlat (C# projesindeki gibi)
+    try {
+      // "Bulunamadı" mesajını kontrol et
+      const notFoundSelectors = [
+        '[data-testid="no-chats-found"]',
+        'div[data-testid="no-chats-found"]',
+        ".no-chats-found",
+        'div:contains("Bulunamadı")',
+        'div:contains("Not found")',
+      ]
+
+      let notFound = false
+      for (const selector of notFoundSelectors) {
+        try {
+          const element = await page.$(selector)
+          if (element) {
+            notFound = true
+            console.log("Numara bulunamadı, yeni sohbet başlatılıyor...")
+            break
+          }
+        } catch (e) {
+          // Sessiz geç
+        }
+      }
+
+      if (notFound) {
+        // Yeni sohbet butonunu bul ve tıkla
+        const newChatSelectors = [
+          '[data-testid="new-chat"]',
+          'div[data-testid="new-chat"]',
+          'button[aria-label="New chat"]',
+          'button[title="New chat"]',
+          'span[data-icon="new-chat"]',
+          'div[data-icon="new-chat"]',
+        ]
+
+        let newChatButton = null
+        for (const selector of newChatSelectors) {
+          try {
+            await page.waitForSelector(selector, { timeout: 3000 })
+            newChatButton = await page.$(selector)
+            if (newChatButton) {
+              console.log("Yeni sohbet butonu bulundu:", selector)
+              break
+            }
+          } catch (e) {
+            console.log("Yeni sohbet butonu bulunamadı:", selector)
+          }
+        }
+
+        if (newChatButton) {
+          await newChatButton.click()
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+
+          // Yeni sohbet arama kutusunu bul
+          const newChatInputSelectors = [
+            '[data-testid="chat-list-search"]',
+            'div[contenteditable="true"][data-tab="3"]',
+            'input[placeholder*="Ara"]',
+            'input[placeholder*="Search"]',
+            'div[contenteditable="true"]',
+          ]
+
+          let newChatInput = null
+          for (const selector of newChatInputSelectors) {
+            try {
+              await page.waitForSelector(selector, { timeout: 3000 })
+              newChatInput = await page.$(selector)
+              if (newChatInput) {
+                console.log("Yeni sohbet arama kutusu bulundu:", selector)
+                break
+              }
+            } catch (e) {
+              console.log("Yeni sohbet arama kutusu bulunamadı:", selector)
+            }
+          }
+
+          if (newChatInput) {
+            // C# projesindeki gibi önce temizle, sonra numara yaz, sonra Enter
+            await newChatInput.focus()
+            await newChatInput.type("", { delay: 100 })
+            await new Promise((resolve) => setTimeout(resolve, 500))
+            await newChatInput.type(formattedPhone, { delay: 100 })
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            await page.keyboard.press("Enter")
+            await new Promise((resolve) => setTimeout(resolve, 2000))
+          }
+        }
+      }
+    } catch (e) {
+      console.log("Numara bulunamadı kontrolü başarısız, devam ediliyor...")
+    }
+
+    // 4. Mesaj kutusunu bul (C# projesindeki gibi)
     const messageBoxSelectors = [
       '[data-testid="conversation-compose-box-input"]',
       'div[contenteditable="true"][data-tab="10"]',
       '[contenteditable="true"]',
       ".selectable-text.copyable-text",
+      'div[contenteditable="true"][data-tab="6"]',
     ]
 
     let messageBox = null
@@ -1083,134 +1083,19 @@ async function sendWhatsAppMessage(phoneNumber, message) {
       )
     }
 
-    // 4. Mesaj kutusunun içeriğini kontrol et
-    const currentText = await page.evaluate(
-      (selector) => {
-        const element = document.querySelector(selector)
-        return element ? element.textContent || element.innerText : ""
-      },
-      messageBoxSelectors.find((selector) => {
-        try {
-          return document.querySelector(selector)
-        } catch {
-          return false
-        }
-      })
-    )
-
-    console.log("Mevcut mesaj kutusu içeriği:", currentText)
-
-    // 5. Eğer mesaj kutusunda zaten mesaj varsa, önce temizle
-    if (currentText && currentText.trim() !== "") {
-      console.log("Mesaj kutusu temizleniyor...")
-      await messageBox.focus()
-      await page.keyboard.down(
-        process.platform === "darwin" ? "Meta" : "Control"
-      )
-      await page.keyboard.press("KeyA")
-      await page.keyboard.up(process.platform === "darwin" ? "Meta" : "Control")
-      await page.keyboard.press("Backspace")
-      await page.waitForTimeout(500)
-    }
-
-    // 6. Mesajı yaz
+    // 5. C# projesindeki gibi mesajı yaz
     console.log("Mesaj yazılıyor:", message)
     await messageBox.focus()
+    await new Promise((resolve) => setTimeout(resolve, 500))
     await messageBox.type(message, { delay: 50 })
-    await page.waitForTimeout(1000)
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    // 7. Mesajın yazıldığını kontrol et
-    const writtenText = await page.evaluate(
-      (selector) => {
-        const element = document.querySelector(selector)
-        return element ? element.textContent || element.innerText : ""
-      },
-      messageBoxSelectors.find((selector) => {
-        try {
-          return document.querySelector(selector)
-        } catch {
-          return false
-        }
-      })
-    )
+    // 6. C# projesindeki gibi Enter ile gönder
+    console.log("Enter ile gönderiliyor...")
+    await page.keyboard.press("Enter")
+    await new Promise((resolve) => setTimeout(resolve, 2000))
 
-    console.log("Yazılan mesaj:", writtenText)
-
-    if (!writtenText.includes(message.substring(0, 10))) {
-      throw new Error("Mesaj yazılamadı")
-    }
-
-    // 8. Gönder butonunu bul ve tıkla
-    const sendButtonSelectors = [
-      '[data-testid="compose-btn-send"]',
-      '[data-icon="send"]',
-      'button[aria-label="Send"]',
-      'button[title="Send"]',
-      'span[data-icon="send"]',
-      'footer button span[data-icon="send"]',
-      'footer button[aria-label="Gönder"]',
-      "footer button",
-    ]
-
-    let sendButton = null
-    for (const selector of sendButtonSelectors) {
-      try {
-        await page.waitForSelector(selector, { timeout: 2000 })
-        sendButton = await page.$(selector)
-        if (sendButton) {
-          console.log("Gönder butonu bulundu:", selector)
-          break
-        }
-      } catch (e) {
-        // Sessiz geç
-      }
-    }
-
-    if (sendButton) {
-      // Butonun tıklanabilir olduğunu kontrol et
-      const isClickable = await page.evaluate(
-        (selector) => {
-          const button = document.querySelector(selector)
-          if (!button) return false
-
-          const rect = button.getBoundingClientRect()
-          const style = window.getComputedStyle(button)
-
-          return (
-            rect.width > 0 &&
-            rect.height > 0 &&
-            style.display !== "none" &&
-            style.visibility !== "hidden" &&
-            !button.disabled
-          )
-        },
-        sendButtonSelectors.find((selector) => {
-          try {
-            return document.querySelector(selector)
-          } catch {
-            return false
-          }
-        })
-      )
-
-      if (isClickable) {
-        await sendButton.click()
-        console.log("Mesaj gönderildi (buton ile)")
-      } else {
-        throw new Error("Gönder butonu tıklanabilir değil")
-      }
-    } else {
-      // Gönder butonu yoksa Enter ile gönder
-      console.log("Gönder butonu bulunamadı, Enter ile gönderiliyor...")
-      await messageBox.focus()
-      await page.keyboard.press("Enter")
-      console.log("Mesaj gönderildi (Enter ile)")
-    }
-
-    // 9. Mesajın gönderildiğini kontrol et
-    await page.waitForTimeout(3000)
-
-    // Mesajın gönderildiğini kontrol et - mesaj kutusunun boş olması gerekir
+    // 7. Mesajın gönderildiğini kontrol et (C# projesindeki gibi)
     const finalText = await page.evaluate(
       (selector) => {
         const element = document.querySelector(selector)
@@ -1227,12 +1112,21 @@ async function sendWhatsAppMessage(phoneNumber, message) {
 
     console.log("Gönderim sonrası mesaj kutusu:", finalText)
 
-    // Mesaj kutusu boşsa veya farklıysa başarılı
+    // Mesaj kutusu boşsa başarılı
     if (
       finalText.trim() === "" ||
       !finalText.includes(message.substring(0, 10))
     ) {
       console.log("✅ Mesaj başarıyla gönderildi")
+
+      // C# projesindeki gibi Escape ile mesaj kutusundan çık
+      await page.keyboard.press("Escape")
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      // C# projesindeki gibi Escape ile numara arama kutusundan çık
+      await page.keyboard.press("Escape")
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
       return true
     } else {
       throw new Error("Mesaj gönderilemedi - mesaj kutusu hala dolu")
@@ -1244,3 +1138,18 @@ async function sendWhatsAppMessage(phoneNumber, message) {
 }
 
 console.log("Tüm IPC handler'lar kaydedildi")
+
+ipcMain.handle(
+  "send-whatsapp-message",
+  async (event, { phoneNumber, message }) => {
+    try {
+      const result = await sendWhatsAppMessage(phoneNumber, message)
+      return {
+        success: result === true,
+        message: result === true ? "Mesaj gönderildi" : "Mesaj gönderilemedi",
+      }
+    } catch (error) {
+      return { success: false, message: error.message }
+    }
+  }
+)
