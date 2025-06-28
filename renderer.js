@@ -915,6 +915,10 @@ function processData(result, messageType) {
       break
   }
 
+  // LOG: Gelen veri ve kolonlar
+  console.log("[processData] Gelen veri:", data)
+  console.log("[processData] Kolonlar:", columns)
+
   currentData = data
   renderDataTable(data, columns)
   updateSelectedStudents()
@@ -924,6 +928,8 @@ function processData(result, messageType) {
 function renderDataTable(data, columns) {
   const container = document.getElementById("student-table-container")
 
+  // LOG: Tabloya aktarılacak satır sayısı
+  console.log(`[renderDataTable] Tabloya aktarılacak satır: ${data.length}`)
   if (data.length === 0) {
     container.innerHTML = '<div class="alert alert-info">Veri bulunamadı</div>'
     return
