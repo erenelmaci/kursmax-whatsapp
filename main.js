@@ -1432,6 +1432,10 @@ ipcMain.handle("get-update-status", () => {
   }
 })
 
+ipcMain.handle("get-app-version", () => {
+  return app.getVersion()
+})
+
 // Uygulama başlatıldığında güncelleme kontrolü
 app.whenReady().then(async () => {
   // Geliştirme modunda da güncelleme kontrolü yap (test için)

@@ -1474,6 +1474,7 @@ function showChromeError(message, recommendation) {
 function updateSystemStatus() {
   const lastUpdateElement = document.getElementById("last-update")
   const whatsappStatusSmall = document.getElementById("whatsapp-status-small")
+  const appVersionElement = document.getElementById("app-version")
 
   if (lastUpdateElement) {
     const now = new Date().toLocaleTimeString("tr-TR")
@@ -1486,6 +1487,19 @@ function updateSystemStatus() {
       whatsappStatus === "connected" ? "Bağlı" : "Bağlanıyor"
     whatsappStatusSmall.className =
       whatsappStatus === "connected" ? "badge bg-success" : "badge bg-warning"
+  }
+
+  // Uygulama version bilgisini güncelle
+  if (appVersionElement) {
+    // Electron'dan version bilgisini al
+    ipcRenderer
+      .invoke("get-app-version")
+      .then((version) => {
+        appVersionElement.textContent = `v${version}`
+      })
+      .catch(() => {
+        appVersionElement.textContent = "v1.0.5" // Fallback version
+      })
   }
 }
 
