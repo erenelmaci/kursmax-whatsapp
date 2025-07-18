@@ -98,6 +98,15 @@ autoUpdater.on("update-downloaded", (info) => {
   }
 })
 
+// Güncelleme kurulumu başladığında uygulamayı kapat
+autoUpdater.on("before-quit-for-update", () => {
+  console.log("Güncelleme kurulumu başlıyor, uygulama kapatılıyor...")
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close()
+  }
+  app.quit()
+})
+
 // Güncelleme kontrol fonksiyonu
 function checkForUpdates() {
   console.log("Güncelleme kontrol ediliyor...")
@@ -113,6 +122,13 @@ function downloadUpdate() {
 // Güncelleme kurma fonksiyonu
 function installUpdate() {
   console.log("Güncelleme kuruluyor...")
+
+  // Önce pencereyi kapat
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close()
+  }
+
+  // Sonra güncellemeyi kur
   autoUpdater.quitAndInstall()
 }
 
@@ -926,7 +942,7 @@ async function initializePuppeteer() {
 
     // Windows için özel ayarlar
     const launchOptions = {
-      headless: false, // Görünür modda çalıştır
+      headless: true, // Arka planda çalıştır (Chrome browser görünmez)
       defaultViewport: null, // Tam ekran
       args: [
         "--no-sandbox",
@@ -1438,12 +1454,8 @@ ipcMain.handle("get-app-version", () => {
 
 // Uygulama başlatıldığında güncelleme kontrolü
 app.whenReady().then(async () => {
-  // Geliştirme modunda da güncelleme kontrolü yap (test için)
-  if (
-    !isDev ||
-    process.env.TEST_UPDATES === "true" ||
-    process.env.NODE_ENV === "development"
-  ) {
+  // Sadece production modunda güncelleme kontrolü yap
+  if (!isDev) {
     console.log("Güncelleme kontrol ediliyor...")
     try {
       // Güncelleme kontrolü tamamlanana kadar bekle

@@ -1414,7 +1414,24 @@ async function downloadUpdate() {
 // Güncelleme kur
 async function installUpdate() {
   try {
-    await ipcRenderer.invoke("install-update")
+    // Modal'ı kapat
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("installModal")
+    )
+    if (modal) {
+      modal.hide()
+    }
+
+    // Kullanıcıya bilgi ver
+    showUpdateNotification(
+      "Güncelleme kuruluyor, uygulama kapatılacak...",
+      "info"
+    )
+
+    // Kısa bir bekleme süresi
+    setTimeout(async () => {
+      await ipcRenderer.invoke("install-update")
+    }, 1000)
   } catch (error) {
     showUpdateNotification("Güncelleme kurulum hatası", "error")
   }
