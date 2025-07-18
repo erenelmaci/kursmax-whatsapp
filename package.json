@@ -1,6 +1,6 @@
 {
   "name": "kursmax-whatsapp",
-  "version": "1.0.1",
+  "version": "1.0.5",
   "description": "KursMax WhatsApp Otomatik Mesaj Gönderme Sistemi",
   "main": "main.js",
   "scripts": {
@@ -12,7 +12,10 @@
     "build:linux": "electron-builder --linux",
     "publish": "electron-builder --win --publish always",
     "release": "node release.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:updates": "node test-updates.js",
+    "start:test-updates": "TEST_UPDATES=true electron .",
+    "dev:with-updates": "NODE_ENV=development electron ."
   },
   "keywords": [
     "electron",

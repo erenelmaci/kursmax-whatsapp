@@ -1434,8 +1434,12 @@ ipcMain.handle("get-update-status", () => {
 
 // Uygulama başlatıldığında güncelleme kontrolü
 app.whenReady().then(async () => {
-  // Geliştirme modunda değilse güncelleme kontrolü yap
-  if (!isDev) {
+  // Geliştirme modunda da güncelleme kontrolü yap (test için)
+  if (
+    !isDev ||
+    process.env.TEST_UPDATES === "true" ||
+    process.env.NODE_ENV === "development"
+  ) {
     console.log("Güncelleme kontrol ediliyor...")
     try {
       // Güncelleme kontrolü tamamlanana kadar bekle
