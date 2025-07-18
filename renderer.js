@@ -222,6 +222,12 @@ function setupEventListeners() {
     testHandlerBtn.addEventListener("click", handleTestHandler)
   }
 
+  // Güncelleme kontrol butonu
+  const checkUpdatesBtn = document.getElementById("check-updates")
+  if (checkUpdatesBtn) {
+    checkUpdatesBtn.addEventListener("click", checkForUpdates)
+  }
+
   // Mesaj tipi değiştiğinde arayüzü güncelle
   const messageTypeElement = document.getElementById("messageType")
   if (messageTypeElement) {
@@ -1013,6 +1019,7 @@ function updateSelectedStudents() {
 
       const index = parseInt(row.dataset.index)
       if (!isNaN(index) && currentData[index]) {
+        // Tüm tablo tipleri için columns sırasına göre veri çek
         selectedStudents.push(currentData[index])
       }
     })
@@ -1206,26 +1213,261 @@ function updateSendButtonState() {
   }
 }
 
-// Puppeteer durum dinleyicisi
+// Puppeteer listener'ını ayarla
 function setupPuppeteerListener() {
+  // WhatsApp durum güncellemelerini dinle
   ipcRenderer.on("whatsapp-status-update", (event, data) => {
+    console.log("WhatsApp durum güncellemesi:", data)
     updateWhatsAppStatus(data.status)
-    updateSystemStatus()
-
-    // WhatsApp numarasını güncelle
-    if (data.number !== undefined) {
+    if (data.number) {
       updateWhatsAppNumber(data.number)
     }
-
-    // Eğer mesaj varsa göster
-    if (data.message) {
-      if (data.status === "disconnected") {
-        showError(data.message)
-      } else {
-        showSuccess(data.message)
-      }
-    }
   })
+
+  // Chrome bulunamadı uyarısı
+  ipcRenderer.on("chrome-not-found", (event, data) => {
+    console.log("Chrome bulunamadı:", data)
+    showChromeWarning(data.message, data.recommendation)
+  })
+
+  // Puppeteer hatası
+  ipcRenderer.on("puppeteer-error", (event, data) => {
+    console.log("Puppeteer hatası:", data)
+    showChromeError(data.message, data.recommendation)
+  })
+
+  // Güncelleme durumu
+  ipcRenderer.on("update-status", (event, data) => {
+    console.log("Güncelleme durumu:", data)
+    handleUpdateStatus(data)
+  })
+
+  // Güncelleme ilerlemesi
+  ipcRenderer.on("update-progress", (event, data) => {
+    console.log("Güncelleme ilerlemesi:", data)
+    updateProgressBar(data)
+  })
+}
+
+// Güncelleme durumunu işle
+function handleUpdateStatus(data) {
+  switch (data.status) {
+    case "checking":
+      showUpdateNotification("Güncelleme kontrol ediliyor...", "info")
+      break
+    case "available":
+      showUpdateDialog(data.info)
+      break
+    case "not-available":
+      showUpdateNotification("Güncel sürüm kullanıyorsunuz.", "success")
+      break
+    case "downloaded":
+      showInstallDialog(data.info)
+      break
+    case "error":
+      showUpdateNotification(`Güncelleme hatası: ${data.error}`, "error")
+      break
+  }
+}
+
+// Güncelleme dialog'unu göster
+function showUpdateDialog(info) {
+  const dialogHtml = `
+    <div class="modal fade" id="updateModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">🔄 Yeni Güncelleme Mevcut</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p><strong>Mevcut Sürüm:</strong> ${app.getVersion()}</p>
+            <p><strong>Yeni Sürüm:</strong> ${info.version}</p>
+            <p><strong>Değişiklikler:</strong></p>
+            <ul>
+              <li>Performans iyileştirmeleri</li>
+              <li>Hata düzeltmeleri</li>
+              <li>Yeni özellikler</li>
+            </ul>
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle"></i>
+              Güncelleme indirildikten sonra uygulama otomatik olarak yeniden başlatılacak.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Daha Sonra</button>
+            <button type="button" class="btn btn-primary" id="downloadUpdateBtn">
+              <i class="fas fa-download"></i> Güncellemeyi İndir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+
+  // Modal'ı sayfaya ekle
+  document.body.insertAdjacentHTML("beforeend", dialogHtml)
+
+  // Modal'ı göster
+  const modal = new bootstrap.Modal(document.getElementById("updateModal"))
+  modal.show()
+
+  // İndirme butonuna event listener ekle
+  document.getElementById("downloadUpdateBtn").addEventListener("click", () => {
+    downloadUpdate()
+    modal.hide()
+  })
+}
+
+// Kurulum dialog'unu göster
+function showInstallDialog(info) {
+  const dialogHtml = `
+    <div class="modal fade" id="installModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">✅ Güncelleme İndirildi</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>Güncelleme başarıyla indirildi. Şimdi kurulum yapabilirsiniz.</p>
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle"></i>
+              Kurulum sırasında uygulama kapatılacak ve yeniden başlatılacak.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Daha Sonra</button>
+            <button type="button" class="btn btn-success" id="installUpdateBtn">
+              <i class="fas fa-play"></i> Şimdi Kur
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+
+  // Modal'ı sayfaya ekle
+  document.body.insertAdjacentHTML("beforeend", dialogHtml)
+
+  // Modal'ı göster
+  const modal = new bootstrap.Modal(document.getElementById("installModal"))
+  modal.show()
+
+  // Kurulum butonuna event listener ekle
+  document.getElementById("installUpdateBtn").addEventListener("click", () => {
+    installUpdate()
+  })
+}
+
+// Güncelleme bildirimi göster
+function showUpdateNotification(message, type) {
+  const alertClass =
+    type === "error"
+      ? "alert-danger"
+      : type === "success"
+      ? "alert-success"
+      : "alert-info"
+
+  const notificationHtml = `
+    <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+      <i class="fas fa-${
+        type === "error"
+          ? "exclamation-triangle"
+          : type === "success"
+          ? "check-circle"
+          : "info-circle"
+      }"></i>
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  `
+
+  // Bildirimi sayfanın üstüne ekle
+  const container = document.querySelector(".container-fluid")
+  if (container) {
+    container.insertAdjacentHTML("afterbegin", notificationHtml)
+  }
+}
+
+// İlerleme çubuğunu güncelle
+function updateProgressBar(progressObj) {
+  // İlerleme çubuğu varsa güncelle
+  const progressBar = document.getElementById("updateProgressBar")
+  if (progressBar) {
+    const percent = Math.round(progressObj.percent)
+    progressBar.style.width = `${percent}%`
+    progressBar.textContent = `${percent}%`
+  }
+}
+
+// Güncelleme indir
+async function downloadUpdate() {
+  try {
+    await ipcRenderer.invoke("download-update")
+    showUpdateNotification("Güncelleme indiriliyor...", "info")
+  } catch (error) {
+    showUpdateNotification("Güncelleme indirme hatası", "error")
+  }
+}
+
+// Güncelleme kur
+async function installUpdate() {
+  try {
+    await ipcRenderer.invoke("install-update")
+  } catch (error) {
+    showUpdateNotification("Güncelleme kurulum hatası", "error")
+  }
+}
+
+// Manuel güncelleme kontrolü
+async function checkForUpdates() {
+  try {
+    await ipcRenderer.invoke("check-for-updates")
+    showUpdateNotification("Güncelleme kontrol ediliyor...", "info")
+  } catch (error) {
+    showUpdateNotification("Güncelleme kontrol hatası", "error")
+  }
+}
+
+// Chrome uyarı mesajını göster
+function showChromeWarning(message, recommendation) {
+  const warningHtml = `
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+      <strong>⚠️ Chrome Uyarısı:</strong> ${message}
+      <br><br>
+      <a href="${recommendation}" target="_blank" class="btn btn-sm btn-warning">
+        <i class="fas fa-download"></i> Chrome'u İndir
+      </a>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  `
+
+  // Uyarıyı sayfanın üstüne ekle
+  const container = document.querySelector(".container-fluid")
+  if (container) {
+    container.insertAdjacentHTML("afterbegin", warningHtml)
+  }
+}
+
+// Chrome hata mesajını göster
+function showChromeError(message, recommendation) {
+  const errorHtml = `
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      <strong>❌ Chrome Hatası:</strong> ${message}
+      <br><br>
+      <a href="${recommendation}" target="_blank" class="btn btn-sm btn-danger">
+        <i class="fas fa-download"></i> Chrome'u İndir
+      </a>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  `
+
+  // Hatayı sayfanın üstüne ekle
+  const container = document.querySelector(".container-fluid")
+  if (container) {
+    container.insertAdjacentHTML("afterbegin", errorHtml)
+  }
 }
 
 // Sistem durumunu güncelle

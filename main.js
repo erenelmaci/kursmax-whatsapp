@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Menu, ipcMain } = require("electron")
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require("electron")
 const path = require("path")
 require("dotenv").config()
+const { autoUpdater } = require("electron-updater")
 
 // Geliştirme modu kontrolü (production'da false olacak)
 const isDev = process.env.NODE_ENV === "development" || !app.isPackaged
@@ -28,6 +29,92 @@ let mainWindow
 let browser = null
 let page = null
 let whatsappStatus = "disconnected"
+
+// Güncelleme durumu
+let updateAvailable = false
+let updateDownloaded = false
+let updateInfo = null
+
+// Güncelleme ayarları
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = true
+
+// Güncelleme event listener'ları
+autoUpdater.on("checking-for-update", () => {
+  console.log("Güncelleme kontrol ediliyor...")
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update-status", { status: "checking" })
+  }
+})
+
+autoUpdater.on("update-available", (info) => {
+  console.log("Güncelleme mevcut:", info)
+  updateAvailable = true
+  updateInfo = info
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update-status", {
+      status: "available",
+      info: info,
+    })
+  }
+})
+
+autoUpdater.on("update-not-available", (info) => {
+  console.log("Güncelleme yok:", info)
+  updateAvailable = false
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update-status", {
+      status: "not-available",
+      info: info,
+    })
+  }
+})
+
+autoUpdater.on("error", (err) => {
+  console.log("Güncelleme hatası:", err)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update-status", {
+      status: "error",
+      error: err.message,
+    })
+  }
+})
+
+autoUpdater.on("download-progress", (progressObj) => {
+  console.log("İndirme ilerlemesi:", progressObj)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update-progress", progressObj)
+  }
+})
+
+autoUpdater.on("update-downloaded", (info) => {
+  console.log("Güncelleme indirildi:", info)
+  updateDownloaded = true
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update-status", {
+      status: "downloaded",
+      info: info,
+    })
+  }
+})
+
+// Güncelleme kontrol fonksiyonu
+function checkForUpdates() {
+  console.log("Güncelleme kontrol ediliyor...")
+  autoUpdater.checkForUpdates()
+}
+
+// Güncelleme indirme fonksiyonu
+function downloadUpdate() {
+  console.log("Güncelleme indiriliyor...")
+  autoUpdater.downloadUpdate()
+}
+
+// Güncelleme kurma fonksiyonu
+function installUpdate() {
+  console.log("Güncelleme kuruluyor...")
+  autoUpdater.quitAndInstall()
+}
 
 // KursMax API Bilgileri
 let kursmaxCredentials = {
@@ -87,8 +174,24 @@ function createWindow() {
   mainWindow.loadFile("index.html")
 
   // Pencere hazır olduğunda göster
-  mainWindow.once("ready-to-show", () => {
+  mainWindow.once("ready-to-show", async () => {
     mainWindow.show()
+
+    // F12 ile DevTools açma kısayolu
+    mainWindow.webContents.on("before-input-event", (event, input) => {
+      if (input.key === "F12") {
+        mainWindow.webContents.toggleDevTools()
+        event.preventDefault()
+      }
+    })
+
+    // Puppeteer başlat
+    try {
+      await initializePuppeteer()
+      console.log("Puppeteer başlatıldı")
+    } catch (error) {
+      console.error("Puppeteer başlatılamadı:", error.message)
+    }
   })
 
   // Geliştirici araçlarını aç (geliştirme modunda)
@@ -105,23 +208,66 @@ function createWindow() {
 
 // Uygulama hazır olduğunda pencere oluştur
 app.whenReady().then(async () => {
-  createWindow()
+  // Geliştirme modunda değilse güncelleme kontrolü yap
+  if (!isDev) {
+    console.log("Güncelleme kontrol ediliyor...")
+    try {
+      // Güncelleme kontrolü tamamlanana kadar bekle
+      await new Promise((resolve) => {
+        let updateChecked = false
 
-  // F12 ile DevTools açma kısayolu
-  mainWindow.webContents.on("before-input-event", (event, input) => {
-    if (input.key === "F12") {
-      mainWindow.webContents.toggleDevTools()
-      event.preventDefault()
+        autoUpdater.on("update-not-available", () => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme yok, uygulama başlatılıyor...")
+            resolve()
+          }
+        })
+
+        autoUpdater.on("update-available", (info) => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme mevcut:", info)
+            // Güncelleme varsa dialog göster
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("update-status", {
+                status: "available",
+                info: info,
+              })
+            }
+            resolve()
+          }
+        })
+
+        autoUpdater.on("error", (err) => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme kontrolü hatası:", err)
+            resolve()
+          }
+        })
+
+        // 10 saniye timeout
+        setTimeout(() => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme kontrolü timeout, uygulama başlatılıyor...")
+            resolve()
+          }
+        }, 10000)
+
+        // Güncelleme kontrolünü başlat
+        autoUpdater.checkForUpdates()
+      })
+    } catch (error) {
+      console.log("Güncelleme kontrolü hatası:", error)
     }
-  })
-
-  // Puppeteer başlat
-  try {
-    await initializePuppeteer()
-    console.log("Puppeteer başlatıldı")
-  } catch (error) {
-    console.error("Puppeteer başlatılamadı:", error.message)
+  } else {
+    console.log("Geliştirme modunda güncelleme kontrolü devre dışı")
   }
+
+  // Güncelleme kontrolü tamamlandıktan sonra uygulamayı başlat
+  createWindow()
 })
 
 // Tüm pencereler kapatıldığında uygulamayı kapat
@@ -778,7 +924,8 @@ async function initializePuppeteer() {
 
     console.log("Puppeteer başlatılıyor...")
 
-    browser = await puppeteer.launch({
+    // Windows için özel ayarlar
+    const launchOptions = {
       headless: false, // Görünür modda çalıştır
       defaultViewport: null, // Tam ekran
       args: [
@@ -790,11 +937,82 @@ async function initializePuppeteer() {
         "--no-zygote",
         "--disable-gpu",
         "--window-size=1200,800",
+        "--disable-web-security",
+        "--disable-features=VizDisplayCompositor",
+        "--disable-extensions",
+        "--disable-plugins",
+        "--disable-images",
+        "--disable-javascript",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--disable-features=TranslateUI",
+        "--disable-ipc-flooding-protection",
       ],
-    })
+    }
+
+    let chromeFound = false
+    let chromePath = null
+
+    // Windows için executable path ekle
+    if (process.platform === "win32") {
+      // Windows'ta Chrome'u bulmaya çalış
+      const possiblePaths = [
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+        process.env.LOCALAPPDATA + "\\Google\\Chrome\\Application\\chrome.exe",
+        process.env.PROGRAMFILES + "\\Google\\Chrome\\Application\\chrome.exe",
+        process.env["PROGRAMFILES(X86)"] +
+          "\\Google\\Chrome\\Application\\chrome.exe",
+      ]
+
+      for (const path of possiblePaths) {
+        try {
+          const fs = require("fs")
+          if (fs.existsSync(path)) {
+            launchOptions.executablePath = path
+            chromePath = path
+            chromeFound = true
+            console.log("Chrome bulundu:", path)
+            break
+          }
+        } catch (e) {
+          // Sessiz geç
+        }
+      }
+
+      // Chrome bulunamadıysa, Puppeteer'ın kendi Chrome'unu kullan
+      if (!chromeFound) {
+        console.log(
+          "Chrome bulunamadı, Puppeteer'ın kendi Chrome'unu kullanıyor..."
+        )
+
+        // Kullanıcıya bilgi ver
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("chrome-not-found", {
+            message:
+              "Google Chrome bulunamadı. Puppeteer'ın kendi Chrome'u kullanılacak. Daha iyi performans için Google Chrome'u yüklemeniz önerilir.",
+            recommendation: "https://www.google.com/chrome/",
+          })
+        }
+      }
+    }
+
+    browser = await puppeteer.launch(launchOptions)
 
     console.log("Browser başlatıldı, sayfa oluşturuluyor...")
     page = await browser.newPage()
+
+    // Sayfa kapatıldığında frame hatalarını önle
+    page.on("close", () => {
+      console.log("Sayfa kapatıldı")
+      page = null
+    })
+
+    page.on("error", (error) => {
+      console.log("Sayfa hatası:", error.message)
+      page = null
+    })
 
     // Sayfa yüklendiğinde log
     page.on("load", () => {
@@ -825,6 +1043,14 @@ async function initializePuppeteer() {
     console.error("Puppeteer başlatma hatası:", error)
     console.log("Test modunda devam ediliyor...")
     whatsappStatus = "connected" // Test modunda bağlı olarak ayarla
+
+    // Kullanıcıya hata bilgisi ver
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("puppeteer-error", {
+        message: "Chrome başlatılamadı. Lütfen Google Chrome'u yükleyin.",
+        recommendation: "https://www.google.com/chrome/",
+      })
+    }
   }
 }
 
@@ -835,6 +1061,31 @@ async function checkWhatsAppStatus() {
       console.log("Puppeteer bulunamadı, test modunda çalışıyor...")
       whatsappStatus = "connected"
       return
+    }
+
+    // Sayfa hala açık mı kontrol et
+    if (page.isClosed()) {
+      console.log("Sayfa kapatılmış, durum kontrolü atlanıyor...")
+      whatsappStatus = "disconnected"
+      return
+    }
+
+    // Frame'in hala geçerli olup olmadığını kontrol et
+    try {
+      await page.evaluate(() => {
+        // Basit bir test - eğer bu çalışırsa frame geçerli
+        return document.readyState
+      })
+    } catch (frameError) {
+      console.log("Frame hatası, sayfa yeniden yükleniyor...")
+      try {
+        await page.reload({ waitUntil: "networkidle2", timeout: 30000 })
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+      } catch (reloadError) {
+        console.error("Sayfa yeniden yükleme hatası:", reloadError)
+        whatsappStatus = "disconnected"
+        return
+      }
     }
 
     // Daha sağlam WhatsApp durum kontrolü
@@ -907,6 +1158,26 @@ async function checkWhatsAppStatus() {
 async function sendWhatsAppMessage(phoneNumber, message) {
   try {
     if (!page) throw new Error("Puppeteer sayfası bulunamadı")
+
+    // Sayfa hala açık mı kontrol et
+    if (page.isClosed()) {
+      throw new Error("WhatsApp sayfası kapatılmış")
+    }
+
+    // Frame'in hala geçerli olup olmadığını kontrol et
+    try {
+      await page.evaluate(() => {
+        return document.readyState
+      })
+    } catch (frameError) {
+      console.log("Frame hatası, sayfa yeniden yükleniyor...")
+      try {
+        await page.reload({ waitUntil: "networkidle2", timeout: 30000 })
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+      } catch (reloadError) {
+        throw new Error("WhatsApp sayfası yeniden yüklenemedi")
+      }
+    }
 
     const formattedPhone = phoneNumber.replace(/^"+/, "").replace(/\s/g, "")
     console.log(`📱 ${phoneNumber} numarasına mesaj gönderiliyor...`)
@@ -1136,6 +1407,94 @@ async function sendWhatsAppMessage(phoneNumber, message) {
     throw error
   }
 }
+
+// Güncelleme IPC handler'ları
+ipcMain.handle("check-for-updates", () => {
+  checkForUpdates()
+  return { success: true }
+})
+
+ipcMain.handle("download-update", () => {
+  downloadUpdate()
+  return { success: true }
+})
+
+ipcMain.handle("install-update", () => {
+  installUpdate()
+  return { success: true }
+})
+
+ipcMain.handle("get-update-status", () => {
+  return {
+    updateAvailable,
+    updateDownloaded,
+    updateInfo,
+  }
+})
+
+// Uygulama başlatıldığında güncelleme kontrolü
+app.whenReady().then(async () => {
+  // Geliştirme modunda değilse güncelleme kontrolü yap
+  if (!isDev) {
+    console.log("Güncelleme kontrol ediliyor...")
+    try {
+      // Güncelleme kontrolü tamamlanana kadar bekle
+      await new Promise((resolve) => {
+        let updateChecked = false
+
+        autoUpdater.on("update-not-available", () => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme yok, uygulama başlatılıyor...")
+            resolve()
+          }
+        })
+
+        autoUpdater.on("update-available", (info) => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme mevcut:", info)
+            // Güncelleme varsa dialog göster
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("update-status", {
+                status: "available",
+                info: info,
+              })
+            }
+            resolve()
+          }
+        })
+
+        autoUpdater.on("error", (err) => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme kontrolü hatası:", err)
+            resolve()
+          }
+        })
+
+        // 10 saniye timeout
+        setTimeout(() => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme kontrolü timeout, uygulama başlatılıyor...")
+            resolve()
+          }
+        }, 10000)
+
+        // Güncelleme kontrolünü başlat
+        autoUpdater.checkForUpdates()
+      })
+    } catch (error) {
+      console.log("Güncelleme kontrolü hatası:", error)
+    }
+  } else {
+    console.log("Geliştirme modunda güncelleme kontrolü devre dışı")
+  }
+
+  // Güncelleme kontrolü tamamlandıktan sonra uygulamayı başlat
+  createWindow()
+})
 
 console.log("Tüm IPC handler'lar kaydedildi")
 
