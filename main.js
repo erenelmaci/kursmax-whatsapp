@@ -44,6 +44,17 @@ if (process.platform === "darwin") {
   console.log("Mac'te güncelleme sistemi aktif")
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
+  // Mac için özel ayarlar
+  autoUpdater.allowDowngrade = false
+  autoUpdater.allowPrerelease = false
+  // Mac için DMG formatını kabul et
+  autoUpdater.setFeedURL({
+    provider: "github",
+    owner: "erenelmaci",
+    repo: "kursmax-whatsapp",
+    private: false,
+    releaseType: "release",
+  })
 }
 
 // Geliştirme modunda güncelleme kontrolünü zorla

@@ -67,7 +67,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dist/KursMax-WhatsApp-${{ github.ref_name }}-arm64.zip
+            dist/KursMax-WhatsApp-${{ github.ref_name }}-arm64.dmg
             dist/latest-mac.yml
           draft: false
           prerelease: false
