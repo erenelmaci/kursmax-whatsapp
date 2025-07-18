@@ -32,8 +32,6 @@ jobs:
           files: |
             dist/KursMax WhatsApp Setup ${{ github.ref_name }}.exe
             dist/latest.yml
-            dist/latest-mac.yml
-            dist/KursMax WhatsApp-${{ github.ref_name }}-arm64.dmg
           draft: false
           prerelease: false
         env:
@@ -65,8 +63,6 @@ jobs:
           files: |
             dist/KursMax WhatsApp-${{ github.ref_name }}-arm64.dmg
             dist/latest-mac.yml
-            dist/latest.yml
-            dist/KursMax WhatsApp Setup ${{ github.ref_name }}.exe
           draft: false
           prerelease: false
           tag_name: ${{ github.ref_name }}
