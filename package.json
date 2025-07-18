@@ -96,13 +96,6 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "kursmax",
-        "repo": "kursmax-whatsapp"
-      }
-    ]
+    }
   }
 }
