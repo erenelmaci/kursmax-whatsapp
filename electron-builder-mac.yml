@@ -1,0 +1,30 @@
+appId: com.kursmax.whatsapp
+productName: KursMax WhatsApp
+directories:
+  output: dist
+files:
+  - "**/*"
+  - "!node_modules/.cache/**/*"
+  - "!node_modules/.bin/**/*"
+  - "!node_modules/.package-lock.json"
+  - "!dist/**/*"
+  - "!**/*.map"
+  - "!**/*.ts"
+  - "!**/*.md"
+  - "!**/.git/**/*"
+  - "!**/.vscode/**/*"
+extraResources:
+  - from: assets
+    to: assets
+  - from: node_modules/puppeteer/.local-chromium
+    to: puppeteer/.local-chromium
+mac:
+  category: public.app-category.education
+  icon: assets/icon.icns
+  target: dmg
+  artifactName: "KursMax WhatsApp-${version}-${arch}.dmg"
+  generateUpdatesFilesForAllChannels: true
+publish:
+  provider: github
+  owner: erenelmaci
+  repo: kursmax-whatsapp

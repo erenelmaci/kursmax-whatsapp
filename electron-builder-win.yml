@@ -1,0 +1,39 @@
+appId: com.kursmax.whatsapp
+productName: KursMax WhatsApp
+directories:
+  output: dist
+files:
+  - "**/*"
+  - "!node_modules/.cache/**/*"
+  - "!node_modules/.bin/**/*"
+  - "!node_modules/.package-lock.json"
+  - "!dist/**/*"
+  - "!**/*.map"
+  - "!**/*.ts"
+  - "!**/*.md"
+  - "!**/.git/**/*"
+  - "!**/.vscode/**/*"
+extraResources:
+  - from: assets
+    to: assets
+  - from: node_modules/puppeteer/.local-chromium
+    to: puppeteer/.local-chromium
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - ia32
+  icon: assets/icon.ico
+  requestedExecutionLevel: asInvoker
+  artifactName: "KursMax WhatsApp Setup ${version}.exe"
+  generateUpdatesFilesForAllChannels: true
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+publish:
+  provider: github
+  owner: erenelmaci
+  repo: kursmax-whatsapp

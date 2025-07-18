@@ -1,18 +1,21 @@
 {
   "name": "kursmax-whatsapp",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "KursMax WhatsApp Otomatik Mesaj Gönderme Sistemi",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win --publish never --config electron-builder-win.yml",
+    "build:mac": "electron-builder --mac --publish never --config electron-builder-mac.yml",
     "build:linux": "electron-builder --linux",
     "publish": "electron-builder --win --publish always",
     "release": "node release.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "clean": "node clean-dist.js",
+    "build:win:clean": "npm run clean && npm run build:win",
+    "build:mac:clean": "npm run clean && npm run build:mac"
   },
   "keywords": [
     "electron",
@@ -90,6 +93,11 @@
     "linux": {
       "target": "AppImage",
       "icon": "assets/icon.png"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "erenelmaci",
+      "repo": "kursmax-whatsapp"
     },
     "nsis": {
       "oneClick": false,

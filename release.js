@@ -49,7 +49,7 @@ async function release() {
 
     // 6. Build al
     console.log("🔨 Windows build alınıyor...")
-    execSync("npm run build:win", { stdio: "inherit" })
+    execSync("npm run build:win:clean", { stdio: "inherit" })
 
     console.log("✅ Sürüm yayınlama tamamlandı!")
     console.log("")
