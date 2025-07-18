@@ -39,10 +39,11 @@ let updateInfo = null
 autoUpdater.autoDownload = true // Otomatik indirme aktif
 autoUpdater.autoInstallOnAppQuit = true
 
-// Mac için güncelleme sistemi devre dışı (sorun çıkarıyor)
+// Mac için güncelleme sistemi aktif
 if (process.platform === "darwin") {
-  console.log("Mac'te güncelleme sistemi devre dışı")
-  autoUpdater.autoDownload = false
+  console.log("Mac'te güncelleme sistemi aktif")
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
 }
 
 // Geliştirme modunda güncelleme kontrolünü zorla

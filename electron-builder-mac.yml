@@ -21,8 +21,8 @@ extraResources:
 mac:
   category: public.app-category.education
   icon: assets/icon.icns
-  target: dmg
-  artifactName: "KursMax-WhatsApp-${version}-${arch}.dmg"
+  target: zip
+  artifactName: "KursMax-WhatsApp-${version}-${arch}.zip"
   generateUpdatesFilesForAllChannels: true
 publish:
   provider: github

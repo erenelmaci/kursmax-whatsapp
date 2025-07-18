@@ -23,6 +23,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install Puppeteer Chromium
+        run: npx puppeteer browsers install chrome
+
       - name: Build Windows
         run: npm run build:win
 
@@ -54,6 +57,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install Puppeteer Chromium
+        run: npx puppeteer browsers install chrome
+
       - name: Build Mac
         run: npm run build:mac
 
@@ -61,7 +67,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dist/KursMax-WhatsApp-${{ github.ref_name }}-arm64.dmg
+            dist/KursMax-WhatsApp-${{ github.ref_name }}-arm64.zip
             dist/latest-mac.yml
           draft: false
           prerelease: false
