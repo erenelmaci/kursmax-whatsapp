@@ -28,7 +28,7 @@ win:
         - ia32
   icon: assets/icon.ico
   requestedExecutionLevel: asInvoker
-  artifactName: "KursMax WhatsApp Setup ${version}.exe"
+  artifactName: "KursMax-WhatsApp-Setup-${version}.exe"
   generateUpdatesFilesForAllChannels: true
 nsis:
   oneClick: false
