@@ -104,19 +104,6 @@ document.addEventListener("DOMContentLoaded", async function () {
           // Login durumunu güncelle
           updateLoginStatus()
           updateSystemStatus()
-
-          // Otomatik login sonrası WhatsApp'ı başlat
-          try {
-            console.log("Otomatik login sonrası WhatsApp başlatılıyor...")
-            const whatsappResult = await ipcRenderer.invoke("start-whatsapp")
-            if (whatsappResult.success) {
-              console.log("WhatsApp başarıyla başlatıldı")
-            } else {
-              console.log("WhatsApp başlatma hatası:", whatsappResult.message)
-            }
-          } catch (error) {
-            console.error("WhatsApp başlatma hatası:", error)
-          }
         } else {
           console.log("Otomatik login başarısız, modal açık kalacak")
           showLoginModal()
@@ -666,19 +653,6 @@ async function handleLogin() {
 
       // Sistem durumunu güncelle
       updateSystemStatus()
-
-      // Login sonrası WhatsApp'ı başlat
-      try {
-        console.log("Login sonrası WhatsApp başlatılıyor...")
-        const whatsappResult = await ipcRenderer.invoke("start-whatsapp")
-        if (whatsappResult.success) {
-          console.log("WhatsApp başarıyla başlatıldı")
-        } else {
-          console.log("WhatsApp başlatma hatası:", whatsappResult.message)
-        }
-      } catch (error) {
-        console.error("WhatsApp başlatma hatası:", error)
-      }
     } else {
       showError("Giriş başarısız: " + result.message)
     }
@@ -738,19 +712,6 @@ async function checkLoginStatus() {
         document.getElementById("kullanici").value = savedKullanici
         document.getElementById("parola").value = savedParola
         document.getElementById("rememberMe").checked = true
-      }
-
-      // Login durumu kontrolü sonrası WhatsApp'ı başlat
-      try {
-        console.log("Login durumu kontrolü sonrası WhatsApp başlatılıyor...")
-        const whatsappResult = await ipcRenderer.invoke("start-whatsapp")
-        if (whatsappResult.success) {
-          console.log("WhatsApp başarıyla başlatıldı")
-        } else {
-          console.log("WhatsApp başlatma hatası:", whatsappResult.message)
-        }
-      } catch (error) {
-        console.error("WhatsApp başlatma hatası:", error)
       }
     }
   } catch (error) {

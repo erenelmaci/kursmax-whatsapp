@@ -39,6 +39,11 @@ let updateInfo = null
 autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = true
 
+// Geliştirme modunda güncelleme kontrolünü zorla
+if (isDev) {
+  autoUpdater.forceDevUpdateConfig = true
+}
+
 // Güncelleme event listener'ları
 autoUpdater.on("checking-for-update", () => {
   console.log("Güncelleme kontrol ediliyor...")
