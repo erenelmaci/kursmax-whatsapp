@@ -36,3 +36,34 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  mac-release:
+    runs-on: macos-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Mac
+        run: npm run build:mac
+
+      - name: Upload Mac Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/KursMax WhatsApp-${{ github.ref_name }}-arm64.dmg
+            dist/latest-mac.yml
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
