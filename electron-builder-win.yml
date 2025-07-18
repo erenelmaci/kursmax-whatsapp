@@ -18,6 +18,8 @@ extraResources:
     to: assets
   - from: node_modules/puppeteer/.local-chromium
     to: puppeteer/.local-chromium
+  - from: node_modules/puppeteer/.cache
+    to: puppeteer/.cache
 win:
   target:
     - target: nsis

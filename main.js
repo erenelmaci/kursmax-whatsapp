@@ -39,6 +39,12 @@ let updateInfo = null
 autoUpdater.autoDownload = true // Otomatik indirme aktif
 autoUpdater.autoInstallOnAppQuit = true
 
+// Mac için güncelleme sistemi devre dışı (sorun çıkarıyor)
+if (process.platform === "darwin") {
+  console.log("Mac'te güncelleme sistemi devre dışı")
+  autoUpdater.autoDownload = false
+}
+
 // Geliştirme modunda güncelleme kontrolünü zorla
 if (isDev) {
   autoUpdater.forceDevUpdateConfig = true
@@ -971,7 +977,7 @@ async function initializePuppeteer() {
       return
     }
 
-    // Windows için özel ayarlar
+    // Production için özel ayarlar
     const launchOptions = {
       headless: isDev ? false : true, // Geliştirme modunda görünür, production'da gizli
       defaultViewport: null, // Tam ekran
@@ -988,8 +994,6 @@ async function initializePuppeteer() {
         "--disable-features=VizDisplayCompositor",
         "--disable-extensions",
         "--disable-plugins",
-        "--disable-images",
-        "--disable-javascript",
         "--disable-background-timer-throttling",
         "--disable-backgrounding-occluded-windows",
         "--disable-renderer-backgrounding",
@@ -998,51 +1002,41 @@ async function initializePuppeteer() {
       ],
     }
 
-    let chromeFound = false
-    let chromePath = null
+    // Puppeteer'ın kendi Chrome'unu kullan
+    console.log("Puppeteer'ın kendi Chrome'u kullanılıyor...")
 
-    // Windows için executable path ekle
-    if (process.platform === "win32") {
-      // Windows'ta Chrome'u bulmaya çalış
-      const possiblePaths = [
-        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-        process.env.LOCALAPPDATA + "\\Google\\Chrome\\Application\\chrome.exe",
-        process.env.PROGRAMFILES + "\\Google\\Chrome\\Application\\chrome.exe",
-        process.env["PROGRAMFILES(X86)"] +
-          "\\Google\\Chrome\\Application\\chrome.exe",
-      ]
+    // Executable path'i ayarla
+    if (app.isPackaged) {
+      // Production'da Puppeteer'ın Chromium'unu kullan
+      const puppeteerPath = path.join(
+        process.resourcesPath,
+        "puppeteer",
+        ".local-chromium"
+      )
+      const chromePath = path.join(
+        puppeteerPath,
+        "chrome-mac-arm64",
+        "Google Chrome for Testing.app",
+        "Contents",
+        "MacOS",
+        "Google Chrome for Testing"
+      )
 
-      for (const path of possiblePaths) {
-        try {
-          const fs = require("fs")
-          if (fs.existsSync(path)) {
-            launchOptions.executablePath = path
-            chromePath = path
-            chromeFound = true
-            console.log("Chrome bulundu:", path)
-            break
-          }
-        } catch (e) {
-          // Sessiz geç
-        }
+      if (require("fs").existsSync(chromePath)) {
+        launchOptions.executablePath = chromePath
+        console.log("Puppeteer Chromium bulundu:", chromePath)
+      } else {
+        console.log("Puppeteer Chromium bulunamadı, varsayılan kullanılıyor")
       }
+    }
 
-      // Chrome bulunamadıysa, Puppeteer'ın kendi Chrome'unu kullan
-      if (!chromeFound) {
-        console.log(
-          "Chrome bulunamadı, Puppeteer'ın kendi Chrome'unu kullanıyor..."
-        )
-
-        // Kullanıcıya bilgi ver
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("chrome-not-found", {
-            message:
-              "Google Chrome bulunamadı. Puppeteer'ın kendi Chrome'u kullanılacak. Daha iyi performans için Google Chrome'u yüklemeniz önerilir.",
-            recommendation: "https://www.google.com/chrome/",
-          })
-        }
-      }
+    // Kullanıcıya bilgi ver
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("chrome-not-found", {
+        message:
+          "Puppeteer'ın kendi Chrome'u kullanılıyor. Daha iyi performans için Google Chrome'u yükleyebilirsiniz.",
+        recommendation: "https://www.google.com/chrome/",
+      })
     }
 
     browser = await puppeteer.launch(launchOptions)
