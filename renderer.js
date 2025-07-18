@@ -562,7 +562,12 @@ function setupEventListeners() {
     refreshWhatsAppBtn.addEventListener("click", handleRefreshWhatsApp)
   }
 
-  // Debug butonları
+  // WhatsApp butonları
+  const openWhatsAppBtn = document.getElementById("open-whatsapp")
+  if (openWhatsAppBtn) {
+    openWhatsAppBtn.addEventListener("click", handleOpenWhatsApp)
+  }
+
   const checkWhatsAppBtn = document.getElementById("check-whatsapp")
   if (checkWhatsAppBtn) {
     checkWhatsAppBtn.addEventListener("click", handleCheckWhatsApp)
@@ -1296,9 +1301,13 @@ function handleUpdateStatus(data) {
       break
     case "available":
       showUpdateDialog(data.info)
+      // Güncelleme varsa butonu aktif et
+      updateUpdateButtonState(true)
       break
     case "not-available":
       showUpdateNotification("Güncel sürüm kullanıyorsunuz.", "success")
+      // Güncelleme yoksa butonu disabled yap
+      updateUpdateButtonState(false)
       break
     case "downloaded":
       showInstallDialog(data.info)
@@ -1306,6 +1315,22 @@ function handleUpdateStatus(data) {
     case "error":
       showUpdateNotification(`Güncelleme hatası: ${data.error}`, "error")
       break
+  }
+}
+
+// Güncelleme butonunun durumunu güncelle
+function updateUpdateButtonState(hasUpdate) {
+  const checkUpdatesBtn = document.getElementById("check-updates")
+  if (checkUpdatesBtn) {
+    if (hasUpdate) {
+      checkUpdatesBtn.disabled = false
+      checkUpdatesBtn.className = "btn btn-sm btn-outline-success"
+      checkUpdatesBtn.innerHTML = '<i class="fas fa-download"></i>'
+    } else {
+      checkUpdatesBtn.disabled = true
+      checkUpdatesBtn.className = "btn btn-sm btn-outline-secondary"
+      checkUpdatesBtn.innerHTML = '<i class="fas fa-check"></i>'
+    }
   }
 }
 
@@ -1479,10 +1504,31 @@ async function installUpdate() {
 // Manuel güncelleme kontrolü
 async function checkForUpdates() {
   try {
+    // Butonu devre dışı bırak
+    const checkUpdatesBtn = document.getElementById("check-updates")
+    if (checkUpdatesBtn) {
+      checkUpdatesBtn.disabled = true
+      checkUpdatesBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'
+    }
+
     await ipcRenderer.invoke("check-for-updates")
-    showUpdateNotification("Güncelleme kontrol ediliyor...", "info")
+
+    // 3 saniye sonra butonu tekrar aktif et
+    setTimeout(() => {
+      if (checkUpdatesBtn) {
+        checkUpdatesBtn.disabled = false
+        checkUpdatesBtn.innerHTML = '<i class="fas fa-download"></i>'
+      }
+    }, 3000)
   } catch (error) {
-    showUpdateNotification("Güncelleme kontrol hatası", "error")
+    console.error("Güncelleme kontrol hatası:", error)
+
+    // Hata durumunda da butonu aktif et
+    const checkUpdatesBtn = document.getElementById("check-updates")
+    if (checkUpdatesBtn) {
+      checkUpdatesBtn.disabled = false
+      checkUpdatesBtn.innerHTML = '<i class="fas fa-download"></i>'
+    }
   }
 }
 
@@ -1590,6 +1636,20 @@ function showSuccess(message) {
 function showError(message) {
   // Basit alert yerine daha güzel bir bildirim sistemi kullanılabilir
   alert("❌ " + message)
+}
+
+// WhatsApp'ı aç
+async function handleOpenWhatsApp() {
+  try {
+    const result = await ipcRenderer.invoke("start-whatsapp")
+    if (result.success) {
+      showSuccess("WhatsApp başlatıldı")
+    } else {
+      showError(result.message)
+    }
+  } catch (error) {
+    showError("WhatsApp başlatma hatası: " + error.message)
+  }
 }
 
 // WhatsApp durum kontrolü
