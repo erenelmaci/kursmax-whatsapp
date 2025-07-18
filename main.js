@@ -201,13 +201,8 @@ function createWindow() {
       }
     })
 
-    // Puppeteer başlat
-    try {
-      await initializePuppeteer()
-      console.log("Puppeteer başlatıldı")
-    } catch (error) {
-      console.error("Puppeteer başlatılamadı:", error.message)
-    }
+    // Puppeteer login sonrası başlatılacak, şimdi başlatma
+    console.log("Uygulama hazır, login sonrası WhatsApp başlatılacak")
   })
 
   // Geliştirici araçlarını aç (geliştirme modunda)
@@ -940,9 +935,40 @@ async function initializePuppeteer() {
 
     console.log("Puppeteer başlatılıyor...")
 
+    // Geliştirme modunda Puppeteer'ı görünür modda başlat
+    if (isDev) {
+      console.log("Geliştirme modunda Puppeteer başlatılıyor...")
+
+      // Geliştirme modunda Chrome'u görünür yap
+      const devLaunchOptions = {
+        headless: false, // Geliştirme modunda görünür
+        defaultViewport: null,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--window-size=1200,800",
+        ],
+      }
+
+      browser = await puppeteer.launch(devLaunchOptions)
+      console.log("Geliştirme modunda browser başlatıldı")
+      page = await browser.newPage()
+
+      // WhatsApp Web'e git
+      console.log("WhatsApp Web'e gidiliyor...")
+      await page.goto("https://web.whatsapp.com", {
+        waitUntil: "networkidle2",
+        timeout: 30000,
+      })
+
+      console.log("WhatsApp Web yüklendi")
+      whatsappStatus = "connected"
+      return
+    }
+
     // Windows için özel ayarlar
     const launchOptions = {
-      headless: true, // Arka planda çalıştır (Chrome browser görünmez)
+      headless: isDev ? false : true, // Geliştirme modunda görünür, production'da gizli
       defaultViewport: null, // Tam ekran
       args: [
         "--no-sandbox",
@@ -1450,6 +1476,18 @@ ipcMain.handle("get-update-status", () => {
 
 ipcMain.handle("get-app-version", () => {
   return app.getVersion()
+})
+
+// Login sonrası WhatsApp başlatma
+ipcMain.handle("start-whatsapp", async () => {
+  try {
+    console.log("Login sonrası WhatsApp başlatılıyor...")
+    await initializePuppeteer()
+    return { success: true, message: "WhatsApp başlatıldı" }
+  } catch (error) {
+    console.error("WhatsApp başlatma hatası:", error)
+    return { success: false, message: error.message }
+  }
 })
 
 // Uygulama başlatıldığında güncelleme kontrolü
