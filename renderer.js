@@ -1255,13 +1255,15 @@ function setupPuppeteerListener() {
 }
 
 // Güncelleme durumunu işle
-function handleUpdateStatus(data) {
+async function handleUpdateStatus(data) {
   switch (data.status) {
     case "checking":
       showUpdateNotification("Güncelleme kontrol ediliyor...", "info")
       break
     case "available":
-      showUpdateDialog(data.info)
+      // Otomatik indirme başlat
+      showUpdateNotification("Güncelleme otomatik indiriliyor...", "info")
+      await ipcRenderer.invoke("download-update")
       // Güncelleme varsa butonu aktif et
       updateUpdateButtonState(true)
       break
@@ -1296,7 +1298,15 @@ function updateUpdateButtonState(hasUpdate) {
 }
 
 // Güncelleme dialog'unu göster
-function showUpdateDialog(info) {
+async function showUpdateDialog(info) {
+  // Mevcut sürümü al
+  let currentVersion = "1.0.16"
+  try {
+    currentVersion = await ipcRenderer.invoke("get-app-version")
+  } catch (error) {
+    console.error("Sürüm bilgisi alınamadı:", error)
+  }
+
   const dialogHtml = `
     <div class="modal fade" id="updateModal" tabindex="-1">
       <div class="modal-dialog">
@@ -1306,13 +1316,14 @@ function showUpdateDialog(info) {
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <p><strong>Mevcut Sürüm:</strong> ${app.getVersion()}</p>
-            <p><strong>Yeni Sürüm:</strong> ${info.version}</p>
+            <p><strong>Mevcut Sürüm:</strong> v${currentVersion}</p>
+            <p><strong>Yeni Sürüm:</strong> v${info.version}</p>
             <p><strong>Değişiklikler:</strong></p>
             <ul>
+              <li>WhatsApp Aç butonu eklendi</li>
+              <li>Güncelleme sistemi iyileştirildi</li>
               <li>Performans iyileştirmeleri</li>
               <li>Hata düzeltmeleri</li>
-              <li>Yeni özellikler</li>
             </ul>
             <div class="alert alert-info">
               <i class="fas fa-info-circle"></i>
@@ -1351,14 +1362,19 @@ function showInstallDialog(info) {
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">✅ Güncelleme İndirildi</h5>
+            <h5 class="modal-title">✅ Güncelleme Hazır</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
+            <p><strong>Yeni Sürüm:</strong> v${info.version}</p>
             <p>Güncelleme başarıyla indirildi. Şimdi kurulum yapabilirsiniz.</p>
             <div class="alert alert-warning">
               <i class="fas fa-exclamation-triangle"></i>
               Kurulum sırasında uygulama kapatılacak ve yeniden başlatılacak.
+            </div>
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle"></i>
+              Güncelleme otomatik olarak indirildi, sadece kurulum onayı gerekiyor.
             </div>
           </div>
           <div class="modal-footer">
@@ -1417,10 +1433,14 @@ function showUpdateNotification(message, type) {
 
 // İlerleme çubuğunu güncelle
 function updateProgressBar(progressObj) {
+  const percent = Math.round(progressObj.percent)
+
+  // İlerleme bildirimi göster
+  showUpdateNotification(`Güncelleme indiriliyor: %${percent}`, "info")
+
   // İlerleme çubuğu varsa güncelle
   const progressBar = document.getElementById("updateProgressBar")
   if (progressBar) {
-    const percent = Math.round(progressObj.percent)
     progressBar.style.width = `${percent}%`
     progressBar.textContent = `${percent}%`
   }

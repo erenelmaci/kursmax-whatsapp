@@ -36,7 +36,7 @@ let updateDownloaded = false
 let updateInfo = null
 
 // Güncelleme ayarları
-autoUpdater.autoDownload = false
+autoUpdater.autoDownload = true // Otomatik indirme aktif
 autoUpdater.autoInstallOnAppQuit = true
 
 // Geliştirme modunda güncelleme kontrolünü zorla
