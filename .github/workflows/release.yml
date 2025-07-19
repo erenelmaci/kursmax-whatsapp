@@ -37,11 +37,14 @@ jobs:
             dist/KursMax-WhatsApp-Setup-${{ github.ref_name }}.exe
             dist/latest.yml
 
+      - name: Sürümden v harfini kaldır
+        run: echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dist/KursMax-WhatsApp-Setup-${{ github.ref_name }}.exe
+            dist/KursMax-WhatsApp-Setup-${{ env.RELEASE_VERSION }}.exe
             dist/latest.yml
           draft: false
           prerelease: false
