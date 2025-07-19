@@ -41,10 +41,15 @@ autoUpdater.autoInstallOnAppQuit = true
 
 // Platform'a göre güncelleme sistemi
 if (process.platform === "darwin") {
-  console.log("Mac'te güncelleme sistemi devre dışı")
-  // Mac için güncelleme sistemi devre dışı - DMG sorunu yüzünden
+  console.log("Mac'te güncelleme sistemi tamamen devre dışı")
+  // Mac için güncelleme sistemi tamamen devre dışı - electron-updater DMG sorunu yüzünden
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
+  // Güncelleme kontrolünü tamamen kapat
+  autoUpdater.checkForUpdates = () => {
+    console.log("Mac'te güncelleme kontrolü devre dışı")
+    return Promise.resolve()
+  }
 } else if (process.platform === "win32") {
   console.log("Windows'ta güncelleme sistemi aktif")
   autoUpdater.autoDownload = true
@@ -200,6 +205,19 @@ function checkForUpdates() {
   console.log(`🖥️  Platform: ${process.platform}`)
   console.log(`📱 Mevcut sürüm: ${app.getVersion()}`)
 
+  // Mac için güncelleme kontrolünü atla
+  if (process.platform === "darwin") {
+    console.log("Mac'te güncelleme kontrolü atlanıyor")
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("update-status", {
+        status: "not-available",
+        info: { version: app.getVersion() },
+        platform: process.platform,
+      })
+    }
+    return
+  }
+
   try {
     autoUpdater.checkForUpdates()
   } catch (error) {
@@ -323,56 +341,64 @@ app.whenReady().then(async () => {
   // Geliştirme modunda değilse güncelleme kontrolü yap
   if (!isDev) {
     console.log("Güncelleme kontrol ediliyor...")
-    try {
-      // Güncelleme kontrolü tamamlanana kadar bekle
-      await new Promise((resolve) => {
-        let updateChecked = false
 
-        autoUpdater.on("update-not-available", () => {
-          if (!updateChecked) {
-            updateChecked = true
-            console.log("Güncelleme yok, uygulama başlatılıyor...")
-            resolve()
-          }
-        })
+    // Mac için güncelleme kontrolünü atla
+    if (process.platform === "darwin") {
+      console.log("Mac'te güncelleme kontrolü atlanıyor")
+    } else {
+      try {
+        // Güncelleme kontrolü tamamlanana kadar bekle
+        await new Promise((resolve) => {
+          let updateChecked = false
 
-        autoUpdater.on("update-available", (info) => {
-          if (!updateChecked) {
-            updateChecked = true
-            console.log("Güncelleme mevcut:", info)
-            // Güncelleme varsa dialog göster
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send("update-status", {
-                status: "available",
-                info: info,
-              })
+          autoUpdater.on("update-not-available", () => {
+            if (!updateChecked) {
+              updateChecked = true
+              console.log("Güncelleme yok, uygulama başlatılıyor...")
+              resolve()
             }
-            resolve()
-          }
+          })
+
+          autoUpdater.on("update-available", (info) => {
+            if (!updateChecked) {
+              updateChecked = true
+              console.log("Güncelleme mevcut:", info)
+              // Güncelleme varsa dialog göster
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send("update-status", {
+                  status: "available",
+                  info: info,
+                })
+              }
+              resolve()
+            }
+          })
+
+          autoUpdater.on("error", (err) => {
+            if (!updateChecked) {
+              updateChecked = true
+              console.log("Güncelleme kontrolü hatası:", err)
+              resolve()
+            }
+          })
+
+          // 10 saniye timeout
+          setTimeout(() => {
+            if (!updateChecked) {
+              updateChecked = true
+              console.log(
+                "Güncelleme kontrolü timeout, uygulama başlatılıyor..."
+              )
+              resolve()
+            }
+          }, 10000)
+
+          // Güncelleme kontrolünü başlat
+          autoUpdater.checkForUpdates()
         })
-
-        autoUpdater.on("error", (err) => {
-          if (!updateChecked) {
-            updateChecked = true
-            console.log("Güncelleme kontrolü hatası:", err)
-            resolve()
-          }
-        })
-
-        // 10 saniye timeout
-        setTimeout(() => {
-          if (!updateChecked) {
-            updateChecked = true
-            console.log("Güncelleme kontrolü timeout, uygulama başlatılıyor...")
-            resolve()
-          }
-        }, 10000)
-
-        // Güncelleme kontrolünü başlat
-        autoUpdater.checkForUpdates()
-      })
-    } catch (error) {
-      console.log("Güncelleme kontrolü hatası:", error)
+      } catch (error) {
+        console.log("Güncelleme kontrolü hatası:", error)
+      }
     }
   } else {
     console.log("Geliştirme modunda güncelleme kontrolü devre dışı")
