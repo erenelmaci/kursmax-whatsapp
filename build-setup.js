@@ -3,6 +3,7 @@
 const { execSync } = require("child_process")
 const fs = require("fs")
 const path = require("path")
+const os = require("os")
 
 async function setupBuild() {
   try {
@@ -101,6 +102,49 @@ async function setupBuild() {
             console.log("⚠️ Chromium kopyalama hatası:", error.message)
           }
         }
+
+        // GitHub Actions'da cache konumunu da kopyala
+        const homeDir = os.homedir()
+        const possibleCachePaths = [
+          path.join(homeDir, ".cache", "puppeteer"),
+          path.join(homeDir, "AppData", "Local", "puppeteer"),
+          path.join(homeDir, "Library", "Caches", "puppeteer"),
+          path.join(process.env.RUNNER_TEMP || "", "puppeteer"),
+          path.join(
+            process.env.GITHUB_WORKSPACE || "",
+            "node_modules",
+            "puppeteer",
+            ".cache"
+          ),
+        ]
+
+        console.log("🔍 Cache konumları aranıyor...")
+        for (const cachePath of possibleCachePaths) {
+          if (fs.existsSync(cachePath)) {
+            console.log(`📂 Cache bulundu: ${cachePath}`)
+            try {
+              // Cache'i kopyala
+              const copyRecursive = (src, dest) => {
+                if (fs.lstatSync(src).isDirectory()) {
+                  if (!fs.existsSync(dest)) {
+                    fs.mkdirSync(dest, { recursive: true })
+                  }
+                  fs.readdirSync(src).forEach((file) => {
+                    copyRecursive(path.join(src, file), path.join(dest, file))
+                  })
+                } else {
+                  fs.copyFileSync(src, dest)
+                }
+              }
+
+              copyRecursive(cachePath, path.join(puppeteerPath, ".cache"))
+              console.log("✅ Cache başarıyla kopyalandı")
+              break
+            } catch (error) {
+              console.log(`⚠️ Cache kopyalama hatası: ${error.message}`)
+            }
+          }
+        }
       }
     }
 
@@ -120,6 +164,30 @@ async function setupBuild() {
         }
       }
     })
+
+    // Klasör içeriklerini listele
+    console.log("📋 Klasör içerikleri:")
+    if (fs.existsSync(localChromiumPath)) {
+      const localChromiumContents = fs.readdirSync(localChromiumPath, {
+        withFileTypes: true,
+      })
+      console.log(`   .local-chromium: ${localChromiumContents.length} öğe`)
+      localChromiumContents.forEach((item) => {
+        console.log(
+          `     - ${item.name} (${item.isDirectory() ? "klasör" : "dosya"})`
+        )
+      })
+    }
+
+    if (fs.existsSync(cachePath)) {
+      const cacheContents = fs.readdirSync(cachePath, { withFileTypes: true })
+      console.log(`   .cache: ${cacheContents.length} öğe`)
+      cacheContents.forEach((item) => {
+        console.log(
+          `     - ${item.name} (${item.isDirectory() ? "klasör" : "dosya"})`
+        )
+      })
+    }
 
     console.log("✅ Build hazırlığı tamamlandı!")
   } catch (error) {
