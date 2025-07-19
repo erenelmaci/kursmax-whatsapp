@@ -29,6 +29,14 @@ jobs:
       - name: Build Windows
         run: npm run build:win
 
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-build
+          path: |
+            dist/KursMax-WhatsApp-Setup-${{ github.ref_name }}.exe
+            dist/latest.yml
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -65,6 +73,15 @@ jobs:
 
       - name: List dist contents
         run: ls -la dist/
+
+      - name: Upload Mac Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: mac-build
+          path: |
+            dist/KursMax-WhatsApp-${{ github.ref_name }}-arm64.dmg
+            dist/KursMax-WhatsApp-${{ github.ref_name }}-x64.dmg
+            dist/latest-mac.yml
 
       - name: Upload Mac Release Assets
         uses: softprops/action-gh-release@v1
