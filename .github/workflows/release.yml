@@ -8,8 +8,8 @@ on:
 jobs:
   release:
     runs-on: windows-latest
-    env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -38,12 +38,12 @@ jobs:
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   mac-release:
     runs-on: macos-latest
-    env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -72,11 +72,9 @@ jobs:
           files: |
             dist/KursMax-WhatsApp-${{ github.ref_name }}-arm64.dmg
             dist/KursMax-WhatsApp-${{ github.ref_name }}-x64.dmg
-            dist/KursMax-WhatsApp-${{ github.ref_name }}-arm64.zip
-            dist/KursMax-WhatsApp-${{ github.ref_name }}-x64.zip
             dist/latest-mac.yml
           draft: false
           prerelease: false
           tag_name: ${{ github.ref_name }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
