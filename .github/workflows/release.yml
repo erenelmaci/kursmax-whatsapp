@@ -30,7 +30,7 @@ jobs:
         run: npm run build:win
 
       - name: Upload Windows Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows-build
           path: |
@@ -75,7 +75,7 @@ jobs:
         run: ls -la dist/
 
       - name: Upload Mac Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mac-build
           path: |
