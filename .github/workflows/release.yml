@@ -63,11 +63,14 @@ jobs:
       - name: Build Mac
         run: npm run build:mac
 
+      - name: List dist contents
+        run: ls -la dist/
+
       - name: Upload Mac Release Assets
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dist/KursMax-WhatsApp-${{ github.ref_name }}-arm64.dmg
+            dist/KursMax-WhatsApp-${{ github.ref_name }}-*.dmg
             dist/latest-mac.yml
           draft: false
           prerelease: false

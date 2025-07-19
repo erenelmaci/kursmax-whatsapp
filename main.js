@@ -56,6 +56,10 @@ if (process.platform === "darwin") {
     private: false,
     releaseType: "release",
     updaterCacheDirName: "kursmax-whatsapp-updater",
+    channel: "latest",
+    requestHeaders: {
+      "User-Agent": "KursMax-WhatsApp-Updater",
+    },
   })
 } else if (process.platform === "win32") {
   console.log("Windows'ta güncelleme sistemi aktif")
@@ -73,6 +77,10 @@ if (process.platform === "darwin") {
     private: false,
     releaseType: "release",
     updaterCacheDirName: "kursmax-whatsapp-updater",
+    channel: "latest",
+    requestHeaders: {
+      "User-Agent": "KursMax-WhatsApp-Updater",
+    },
   })
 } else {
   console.log("Linux'ta güncelleme sistemi aktif")
@@ -90,6 +98,10 @@ if (process.platform === "darwin") {
     private: false,
     releaseType: "release",
     updaterCacheDirName: "kursmax-whatsapp-updater",
+    channel: "latest",
+    requestHeaders: {
+      "User-Agent": "KursMax-WhatsApp-Updater",
+    },
   })
 }
 
@@ -138,19 +150,37 @@ autoUpdater.on("error", (err) => {
     if (errorMessage.includes("ZIP file not provided")) {
       errorMessage =
         "Mac için DMG dosyası bulunamadı. Lütfen manuel olarak güncelleyin."
+    } else if (errorMessage.includes("404")) {
+      errorMessage =
+        "GitHub'da güncelleme dosyası bulunamadı. Lütfen manuel olarak güncelleyin."
+    } else if (errorMessage.includes("network")) {
+      errorMessage =
+        "Ağ bağlantısı hatası. Lütfen internet bağlantınızı kontrol edin."
     }
   } else if (process.platform === "win32") {
     if (errorMessage.includes("ZIP file not provided")) {
       errorMessage =
         "Windows için EXE dosyası bulunamadı. Lütfen manuel olarak güncelleyin."
+    } else if (errorMessage.includes("404")) {
+      errorMessage =
+        "GitHub'da güncelleme dosyası bulunamadı. Lütfen manuel olarak güncelleyin."
+    } else if (errorMessage.includes("network")) {
+      errorMessage =
+        "Ağ bağlantısı hatası. Lütfen internet bağlantınızı kontrol edin."
     }
   }
+
+  console.log(`🔄 Güncelleme hatası detayları:`)
+  console.log(`   Platform: ${process.platform}`)
+  console.log(`   Hata: ${err.message}`)
+  console.log(`   Kullanıcı mesajı: ${errorMessage}`)
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("update-status", {
       status: "error",
       error: errorMessage,
       platform: process.platform,
+      originalError: err.message,
     })
   }
 })

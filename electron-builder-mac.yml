@@ -42,6 +42,19 @@ mac:
   gatekeeperAssess: false
   entitlements: null
   entitlementsInherit: null
+  identity: null
+  notarize: false
+dmg:
+  title: "KursMax WhatsApp ${version}"
+  icon: assets/icon.icns
+  background: assets/icon.png
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: "link"
+      path: "/Applications"
 publish:
   provider: github
   owner: erenelmaci
