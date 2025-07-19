@@ -60,6 +60,12 @@ if (process.platform === "darwin") {
     requestHeaders: {
       "User-Agent": "KursMax-WhatsApp-Updater",
     },
+    // Mac için özel ayarlar - DMG dosyalarını tercih et
+    isGeneric: false,
+    updaterCacheDirName: "kursmax-whatsapp-updater",
+    // DMG dosyalarını tercih et
+    allowPrerelease: false,
+    allowDowngrade: false,
   })
 } else if (process.platform === "win32") {
   console.log("Windows'ta güncelleme sistemi aktif")
@@ -156,6 +162,9 @@ autoUpdater.on("error", (err) => {
     } else if (errorMessage.includes("network")) {
       errorMessage =
         "Ağ bağlantısı hatası. Lütfen internet bağlantınızı kontrol edin."
+    } else if (errorMessage.includes("DMG")) {
+      errorMessage =
+        "DMG dosyası işlenirken hata oluştu. Lütfen manuel olarak güncelleyin."
     }
   } else if (process.platform === "win32") {
     if (errorMessage.includes("ZIP file not provided")) {

@@ -189,6 +189,18 @@ async function setupBuild() {
       })
     }
 
+    // Dist klasörünü temizle (eğer varsa)
+    const distPath = path.join(__dirname, "dist")
+    if (fs.existsSync(distPath)) {
+      console.log("🧹 Dist klasörü temizleniyor...")
+      try {
+        fs.rmSync(distPath, { recursive: true, force: true })
+        console.log("✅ Dist klasörü temizlendi")
+      } catch (error) {
+        console.log("⚠️ Dist klasörü temizlenemedi:", error.message)
+      }
+    }
+
     console.log("✅ Build hazırlığı tamamlandı!")
   } catch (error) {
     console.error("❌ Build hazırlığı hatası:", error.message)
