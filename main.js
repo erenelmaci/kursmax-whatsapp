@@ -1111,6 +1111,7 @@ async function initializePuppeteer() {
     if (app.isPackaged) {
       // Production'da Puppeteer Chromium'u doğrudan kullan
       console.log("Production modunda Puppeteer Chromium aranıyor...")
+      console.log("Resources path:", process.resourcesPath)
 
       // Farklı platformlar için executable path'leri dene
       let chromePath = null
@@ -1118,6 +1119,7 @@ async function initializePuppeteer() {
       if (process.platform === "darwin") {
         // Mac için Puppeteer Chromium'u öncelikle dene
         const possiblePaths = [
+          // Production build path'leri
           path.join(
             process.resourcesPath,
             "puppeteer",
@@ -1151,16 +1153,42 @@ async function initializePuppeteer() {
             "MacOS",
             "Google Chrome for Testing"
           ),
+          // Alternatif path'ler (farklı versiyonlar için)
+          path.join(
+            process.resourcesPath,
+            "puppeteer",
+            ".local-chromium",
+            "mac_arm-137.0.7151.119",
+            "chrome-mac-arm64",
+            "Google Chrome for Testing.app",
+            "Contents",
+            "MacOS",
+            "Google Chrome for Testing"
+          ),
+          path.join(
+            process.resourcesPath,
+            "puppeteer",
+            ".local-chromium",
+            "mac_arm-127.0.6533.88",
+            "chrome-mac-arm64",
+            "Google Chrome for Testing.app",
+            "Contents",
+            "MacOS",
+            "Google Chrome for Testing"
+          ),
           // Sistem Chrome'u son çare olarak dene
           "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
           "/Applications/Chromium.app/Contents/MacOS/Chromium",
         ]
 
         for (const testPath of possiblePaths) {
+          console.log("Chrome path deneniyor:", testPath)
           if (require("fs").existsSync(testPath)) {
             chromePath = testPath
             console.log("Mac Chrome bulundu:", chromePath)
             break
+          } else {
+            console.log("Chrome path bulunamadı:", testPath)
           }
         }
       } else if (process.platform === "win32") {
@@ -1196,10 +1224,13 @@ async function initializePuppeteer() {
         ]
 
         for (const testPath of possiblePaths) {
+          console.log("Chrome path deneniyor:", testPath)
           if (require("fs").existsSync(testPath)) {
             chromePath = testPath
             console.log("Windows Chrome bulundu:", chromePath)
             break
+          } else {
+            console.log("Chrome path bulunamadı:", testPath)
           }
         }
       } else if (process.platform === "linux") {
@@ -1228,10 +1259,13 @@ async function initializePuppeteer() {
         ]
 
         for (const testPath of possiblePaths) {
+          console.log("Chrome path deneniyor:", testPath)
           if (require("fs").existsSync(testPath)) {
             chromePath = testPath
             console.log("Linux Chrome bulundu:", chromePath)
             break
+          } else {
+            console.log("Chrome path bulunamadı:", testPath)
           }
         }
       }
@@ -1267,7 +1301,23 @@ async function initializePuppeteer() {
       })
     }
 
-    browser = await puppeteer.launch(launchOptions)
+    try {
+      console.log(
+        "Puppeteer launch options:",
+        JSON.stringify(launchOptions, null, 2)
+      )
+      browser = await puppeteer.launch(launchOptions)
+      console.log("✅ Browser başarıyla başlatıldı")
+    } catch (error) {
+      console.error("❌ Puppeteer launch hatası:", error.message)
+      console.error("Launch options:", launchOptions)
+
+      // Fallback: executable path olmadan dene
+      console.log("🔄 Fallback: executable path olmadan deneniyor...")
+      delete launchOptions.executablePath
+      browser = await puppeteer.launch(launchOptions)
+      console.log("✅ Fallback ile browser başlatıldı")
+    }
 
     console.log("Browser başlatıldı, sayfa oluşturuluyor...")
     page = await browser.newPage()
