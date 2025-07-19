@@ -43,7 +43,7 @@ async function setupBuild() {
     console.log(`   .cache: ${fs.existsSync(cachePath) ? "✅" : "❌"}`)
 
     // Klasör içeriklerini listele
-    console.log("�� Klasör içerikleri:")
+    console.log("📁 Klasör içerikleri:")
     if (fs.existsSync(localChromiumPath)) {
       const localChromiumContents = fs.readdirSync(localChromiumPath)
       console.log(`   .local-chromium: ${localChromiumContents.length} öğe`)
@@ -68,17 +68,68 @@ async function setupBuild() {
       })
     }
 
-    // Dist klasörü temizleme kısmını kaldır
-    // console.log("🧹 Dist klasörü temizleniyor...")
-    // try {
-    //   const distPath = path.join(__dirname, "dist")
-    //   if (fs.existsSync(distPath)) {
-    //     fs.rmSync(distPath, { recursive: true, force: true })
-    //     console.log("✅ Dist klasörü temizlendi")
-    //   }
-    // } catch (error) {
-    //   console.log("⚠️ Dist klasörü temizlenemedi:", error.message)
-    // }
+    // Production build için Puppeteer Chromium'u resources klasörüne kopyala
+    console.log("📦 Production build için Puppeteer Chromium hazırlanıyor...")
+
+    // Resources klasörü oluştur
+    const resourcesPath = path.join(__dirname, "resources")
+    const puppeteerResourcesPath = path.join(resourcesPath, "puppeteer")
+
+    if (!fs.existsSync(resourcesPath)) {
+      fs.mkdirSync(resourcesPath, { recursive: true })
+    }
+
+    if (!fs.existsSync(puppeteerResourcesPath)) {
+      fs.mkdirSync(puppeteerResourcesPath, { recursive: true })
+    }
+
+    // Chromium'u cache klasöründen kopyala (eğer resources'da yoksa)
+    const cacheChromiumPath = path.join(
+      os.homedir(),
+      ".cache",
+      "puppeteer",
+      "chrome"
+    )
+    const targetChromiumPath = path.join(
+      puppeteerResourcesPath,
+      ".local-chromium"
+    )
+
+    if (
+      fs.existsSync(cacheChromiumPath) &&
+      !fs.existsSync(targetChromiumPath)
+    ) {
+      console.log("📦 Puppeteer Chromium resources klasörüne kopyalanıyor...")
+
+      // Cache klasöründen kopyala
+      execSync(`cp -r "${cacheChromiumPath}" "${targetChromiumPath}"`, {
+        stdio: "inherit",
+      })
+      console.log(
+        "✅ Puppeteer Chromium cache'den resources klasörüne kopyalandı"
+      )
+    } else if (fs.existsSync(targetChromiumPath)) {
+      console.log("✅ Puppeteer Chromium zaten resources klasöründe mevcut")
+    } else {
+      console.log(
+        "⚠️ Puppeteer Chromium bulunamadı, manuel indirme gerekebilir"
+      )
+    }
+
+    // .cache klasörünü kopyala (eğer yoksa)
+    if (fs.existsSync(cachePath)) {
+      const targetCachePath = path.join(puppeteerResourcesPath, ".cache")
+
+      if (!fs.existsSync(targetCachePath)) {
+        // Klasörü kopyala
+        execSync(`cp -r "${cachePath}" "${targetCachePath}"`, {
+          stdio: "inherit",
+        })
+        console.log("✅ Puppeteer cache resources klasörüne kopyalandı")
+      } else {
+        console.log("✅ Puppeteer cache zaten resources klasöründe mevcut")
+      }
+    }
 
     console.log("✅ Build hazırlığı tamamlandı!")
   } catch (error) {

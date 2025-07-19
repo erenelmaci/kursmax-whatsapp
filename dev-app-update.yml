@@ -1,0 +1,11 @@
+version: 1.0.61
+files:
+  - url: dist/KursMax-WhatsApp-1.0.61-arm64.dmg
+    sha512: Zrrknxs2Jink56AITf3kd4yomkldSTpAo0FOzRDMgrFftND4oCRTMyMORkz2l1n+0yWEn5VIhzQvb+4N4e4P6Q==
+    size: 104408893
+  - url: dist/KursMax-WhatsApp-1.0.61-x64.dmg
+    sha512: Drla2o75C+HTpUiQZI5/Q9rBqiYMquVuSzW8GG5KAf8tBCn/ey9fjD/62WilKLzCGwXGVSEWxcdcd6FJd1Q3BQ==
+    size: 109490549
+path: dist/KursMax-WhatsApp-1.0.61-arm64.dmg
+sha512: Zrrknxs2Jink56AITf3kd4yomkldSTpAo0FOzRDMgrFftND4oCRTMyMORkz2l1n+0yWEn5VIhzQvb+4N4e4P6Q==
+releaseDate: "2025-07-19T12:22:16.826Z"

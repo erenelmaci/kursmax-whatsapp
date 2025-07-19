@@ -66,4 +66,7 @@ Thumbs.db
 
 # Temporary files
 *.tmp
-*.temp 
+*.temp
+
+# Puppeteer Chromium files (large binary files)
+resources/puppeteer/ 

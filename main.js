@@ -41,15 +41,10 @@ autoUpdater.autoInstallOnAppQuit = true
 
 // Platform'a göre güncelleme sistemi
 if (process.platform === "darwin") {
-  console.log("Mac'te güncelleme sistemi tamamen devre dışı")
-  // Mac için güncelleme sistemi tamamen devre dışı - electron-updater DMG sorunu yüzünden
+  console.log("Mac'te güncelleme sistemi aktif")
+  // Mac için güncelleme sistemi aktif - test için
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
-  // Güncelleme kontrolünü tamamen kapat
-  autoUpdater.checkForUpdates = () => {
-    console.log("Mac'te güncelleme kontrolü devre dışı")
-    return Promise.resolve()
-  }
 } else if (process.platform === "win32") {
   console.log("Windows'ta güncelleme sistemi aktif")
   autoUpdater.autoDownload = true
@@ -205,19 +200,6 @@ function checkForUpdates() {
   console.log(`🖥️  Platform: ${process.platform}`)
   console.log(`📱 Mevcut sürüm: ${app.getVersion()}`)
 
-  // Mac için güncelleme kontrolünü atla
-  if (process.platform === "darwin") {
-    console.log("Mac'te güncelleme kontrolü atlanıyor")
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("update-status", {
-        status: "not-available",
-        info: { version: app.getVersion() },
-        platform: process.platform,
-      })
-    }
-    return
-  }
-
   try {
     autoUpdater.checkForUpdates()
   } catch (error) {
@@ -342,63 +324,56 @@ app.whenReady().then(async () => {
   if (!isDev) {
     console.log("Güncelleme kontrol ediliyor...")
 
-    // Mac için güncelleme kontrolünü atla
-    if (process.platform === "darwin") {
-      console.log("Mac'te güncelleme kontrolü atlanıyor")
-    } else {
-      try {
-        // Güncelleme kontrolü tamamlanana kadar bekle
-        await new Promise((resolve) => {
-          let updateChecked = false
+    try {
+      // Güncelleme kontrolü tamamlanana kadar bekle
+      await new Promise((resolve) => {
+        let updateChecked = false
 
-          autoUpdater.on("update-not-available", () => {
-            if (!updateChecked) {
-              updateChecked = true
-              console.log("Güncelleme yok, uygulama başlatılıyor...")
-              resolve()
-            }
-          })
-
-          autoUpdater.on("update-available", (info) => {
-            if (!updateChecked) {
-              updateChecked = true
-              console.log("Güncelleme mevcut:", info)
-              // Güncelleme varsa dialog göster
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send("update-status", {
-                  status: "available",
-                  info: info,
-                })
-              }
-              resolve()
-            }
-          })
-
-          autoUpdater.on("error", (err) => {
-            if (!updateChecked) {
-              updateChecked = true
-              console.log("Güncelleme kontrolü hatası:", err)
-              resolve()
-            }
-          })
-
-          // 10 saniye timeout
-          setTimeout(() => {
-            if (!updateChecked) {
-              updateChecked = true
-              console.log(
-                "Güncelleme kontrolü timeout, uygulama başlatılıyor..."
-              )
-              resolve()
-            }
-          }, 10000)
-
-          // Güncelleme kontrolünü başlat
-          autoUpdater.checkForUpdates()
+        autoUpdater.on("update-not-available", () => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme yok, uygulama başlatılıyor...")
+            resolve()
+          }
         })
-      } catch (error) {
-        console.log("Güncelleme kontrolü hatası:", error)
-      }
+
+        autoUpdater.on("update-available", (info) => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme mevcut:", info)
+            // Güncelleme varsa dialog göster
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("update-status", {
+                status: "available",
+                info: info,
+              })
+            }
+            resolve()
+          }
+        })
+
+        autoUpdater.on("error", (err) => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme kontrolü hatası:", err)
+            resolve()
+          }
+        })
+
+        // 10 saniye timeout
+        setTimeout(() => {
+          if (!updateChecked) {
+            updateChecked = true
+            console.log("Güncelleme kontrolü timeout, uygulama başlatılıyor...")
+            resolve()
+          }
+        }, 10000)
+
+        // Güncelleme kontrolünü başlat
+        autoUpdater.checkForUpdates()
+      })
+    } catch (error) {
+      console.log("Güncelleme kontrolü hatası:", error)
     }
   } else {
     console.log("Geliştirme modunda güncelleme kontrolü devre dışı")
@@ -1134,15 +1109,18 @@ async function initializePuppeteer() {
 
     // Executable path'i ayarla
     if (app.isPackaged) {
-      // Production'da Puppeteer'ın Chromium'unu kullan
-      console.log("Production modunda Puppeteer Chromium aranıyor...")
+      // Production'da sistem Chrome'unu kullan
+      console.log("Production modunda sistem Chrome'u aranıyor...")
 
       // Farklı platformlar için executable path'leri dene
       let chromePath = null
 
       if (process.platform === "darwin") {
-        // Mac için
+        // Mac için sistem Chrome'unu öncelikle dene
         const possiblePaths = [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "/Applications/Chromium.app/Contents/MacOS/Chromium",
+          // Puppeteer Chromium'u son çare olarak dene
           path.join(
             process.resourcesPath,
             "puppeteer",
@@ -1163,18 +1141,6 @@ async function initializePuppeteer() {
             "MacOS",
             "Google Chrome for Testing"
           ),
-          path.join(
-            process.resourcesPath,
-            "puppeteer",
-            ".local-chromium",
-            "chrome-mac",
-            "Google Chrome for Testing.app",
-            "Contents",
-            "MacOS",
-            "Google Chrome for Testing"
-          ),
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-          "/Applications/Chromium.app/Contents/MacOS/Chromium",
         ]
 
         for (const testPath of possiblePaths) {
@@ -1185,8 +1151,11 @@ async function initializePuppeteer() {
           }
         }
       } else if (process.platform === "win32") {
-        // Windows için
+        // Windows için sistem Chrome'unu öncelikle dene
         const possiblePaths = [
+          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+          "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+          // Puppeteer Chromium'u son çare olarak dene
           path.join(
             process.resourcesPath,
             "puppeteer",
@@ -1201,15 +1170,6 @@ async function initializePuppeteer() {
             "chrome-win32",
             "chrome.exe"
           ),
-          path.join(
-            process.resourcesPath,
-            "puppeteer",
-            ".local-chromium",
-            "chrome-win",
-            "chrome.exe"
-          ),
-          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-          "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
         ]
 
         for (const testPath of possiblePaths) {
@@ -1220,8 +1180,12 @@ async function initializePuppeteer() {
           }
         }
       } else if (process.platform === "linux") {
-        // Linux için
+        // Linux için sistem Chrome'unu öncelikle dene
         const possiblePaths = [
+          "/usr/bin/google-chrome",
+          "/usr/bin/chromium-browser",
+          "/usr/bin/chromium",
+          // Puppeteer Chromium'u son çare olarak dene
           path.join(
             process.resourcesPath,
             "puppeteer",
@@ -1229,9 +1193,6 @@ async function initializePuppeteer() {
             "chrome-linux",
             "chrome"
           ),
-          "/usr/bin/google-chrome",
-          "/usr/bin/chromium-browser",
-          "/usr/bin/chromium",
         ]
 
         for (const testPath of possiblePaths) {
@@ -1245,29 +1206,26 @@ async function initializePuppeteer() {
 
       if (chromePath) {
         launchOptions.executablePath = chromePath
-        console.log("Puppeteer Chromium kullanılıyor:", chromePath)
+        console.log("Chrome kullanılıyor:", chromePath)
       } else {
         console.log(
-          "Puppeteer Chromium bulunamadı, sistem Chrome'u deneniyor..."
+          "Sistem Chrome'u bulunamadı, Puppeteer Chromium deneniyor..."
         )
 
-        // Sistem Chrome'unu dene
+        // Puppeteer Chromium'u dene
         try {
           const puppeteer = require("puppeteer")
           const systemChromePath = await puppeteer.executablePath()
-          if (
-            systemChromePath &&
-            systemChromePath !== puppeteer.executablePath()
-          ) {
+          if (systemChromePath) {
             launchOptions.executablePath = systemChromePath
-            console.log("Sistem Chrome'u kullanılıyor:", systemChromePath)
+            console.log("Puppeteer Chromium kullanılıyor:", systemChromePath)
           } else {
             console.log(
-              "Sistem Chrome'u da bulunamadı, varsayılan kullanılıyor"
+              "Puppeteer Chromium da bulunamadı, varsayılan kullanılıyor"
             )
           }
         } catch (error) {
-          console.log("Sistem Chrome'u kontrol edilemedi:", error.message)
+          console.log("Chrome kontrol edilemedi:", error.message)
         }
       }
     }
