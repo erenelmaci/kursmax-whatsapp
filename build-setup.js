@@ -19,8 +19,8 @@ async function setupBuild() {
       execSync("npm install puppeteer", { stdio: "inherit" })
     }
 
-    // Puppeteer'ın Chromium'unu indir
-    console.log("🌐 Puppeteer Chromium indiriliyor...")
+    // Puppeteer'ın Chromium'unu indir (sadece ilk kez)
+    console.log("🌐 Puppeteer Chromium kontrol ediliyor...")
 
     try {
       const puppeteer = require("puppeteer")
@@ -29,47 +29,6 @@ async function setupBuild() {
     } catch (error) {
       console.log("❌ Chromium indirme hatası:", error.message)
     }
-
-    // Puppeteer klasörlerini kontrol et
-    const puppeteerPath = path.join(__dirname, "node_modules", "puppeteer")
-    const localChromiumPath = path.join(puppeteerPath, ".local-chromium")
-    const cachePath = path.join(puppeteerPath, ".cache")
-
-    console.log("📁 Klasör kontrolü:")
-    console.log(`   Puppeteer: ${fs.existsSync(puppeteerPath) ? "✅" : "❌"}`)
-    console.log(
-      `   .local-chromium: ${fs.existsSync(localChromiumPath) ? "✅" : "❌"}`
-    )
-    console.log(`   .cache: ${fs.existsSync(cachePath) ? "✅" : "❌"}`)
-
-    // Klasör içeriklerini listele
-    console.log("📁 Klasör içerikleri:")
-    if (fs.existsSync(localChromiumPath)) {
-      const localChromiumContents = fs.readdirSync(localChromiumPath)
-      console.log(`   .local-chromium: ${localChromiumContents.length} öğe`)
-      localChromiumContents.forEach((item) => {
-        const itemPath = path.join(localChromiumPath, item)
-        const stats = fs.statSync(itemPath)
-        console.log(
-          `     - ${item} (${stats.isDirectory() ? "klasör" : "dosya"})`
-        )
-      })
-    }
-
-    if (fs.existsSync(cachePath)) {
-      const cacheContents = fs.readdirSync(cachePath)
-      console.log(`   .cache: ${cacheContents.length} öğe`)
-      cacheContents.forEach((item) => {
-        const itemPath = path.join(cachePath, item)
-        const stats = fs.statSync(itemPath)
-        console.log(
-          `     - ${item} (${stats.isDirectory() ? "klasör" : "dosya"})`
-        )
-      })
-    }
-
-    // Production build için Puppeteer Chromium'u resources klasörüne kopyala
-    console.log("📦 Production build için Puppeteer Chromium hazırlanıyor...")
 
     // Resources klasörü oluştur
     const resourcesPath = path.join(__dirname, "resources")
@@ -83,7 +42,7 @@ async function setupBuild() {
       fs.mkdirSync(puppeteerResourcesPath, { recursive: true })
     }
 
-    // Chromium'u cache klasöründen kopyala (eğer resources'da yoksa)
+    // Chromium cache kontrolü - sadece yoksa kopyala
     const cacheChromiumPath = path.join(
       os.homedir(),
       ".cache",
@@ -95,11 +54,37 @@ async function setupBuild() {
       ".local-chromium"
     )
 
+    // Chromium boyut kontrolü
+    let cacheSize = 0
+    let targetSize = 0
+
+    if (fs.existsSync(cacheChromiumPath)) {
+      cacheSize = getDirectorySize(cacheChromiumPath)
+      console.log(
+        `📊 Cache Chromium boyutu: ${(cacheSize / 1024 / 1024).toFixed(2)} MB`
+      )
+    }
+
+    if (fs.existsSync(targetChromiumPath)) {
+      targetSize = getDirectorySize(targetChromiumPath)
+      console.log(
+        `📊 Target Chromium boyutu: ${(targetSize / 1024 / 1024).toFixed(2)} MB`
+      )
+    }
+
+    // Sadece gerekiyorsa kopyala
     if (
       fs.existsSync(cacheChromiumPath) &&
-      !fs.existsSync(targetChromiumPath)
+      (!fs.existsSync(targetChromiumPath) || targetSize < cacheSize * 0.9) // %90'dan az ise yeniden kopyala
     ) {
       console.log("📦 Puppeteer Chromium resources klasörüne kopyalanıyor...")
+      console.log("⏳ Bu işlem birkaç dakika sürebilir...")
+
+      // Eski klasörü sil (eğer varsa)
+      if (fs.existsSync(targetChromiumPath)) {
+        console.log("🗑️ Eski Chromium klasörü siliniyor...")
+        fs.rmSync(targetChromiumPath, { recursive: true, force: true })
+      }
 
       // Cache klasöründen kopyala
       execSync(`cp -r "${cacheChromiumPath}" "${targetChromiumPath}"`, {
@@ -109,26 +94,30 @@ async function setupBuild() {
         "✅ Puppeteer Chromium cache'den resources klasörüne kopyalandı"
       )
     } else if (fs.existsSync(targetChromiumPath)) {
-      console.log("✅ Puppeteer Chromium zaten resources klasöründe mevcut")
+      console.log(
+        "✅ Puppeteer Chromium zaten resources klasöründe mevcut ve güncel"
+      )
     } else {
       console.log(
         "⚠️ Puppeteer Chromium bulunamadı, manuel indirme gerekebilir"
       )
     }
 
-    // .cache klasörünü kopyala (eğer yoksa)
-    if (fs.existsSync(cachePath)) {
-      const targetCachePath = path.join(puppeteerResourcesPath, ".cache")
+    // .cache klasörü kontrolü - sadece yoksa kopyala
+    const puppeteerPath = path.join(__dirname, "node_modules", "puppeteer")
+    const cachePath = path.join(puppeteerPath, ".cache")
+    const targetCachePath = path.join(puppeteerResourcesPath, ".cache")
 
-      if (!fs.existsSync(targetCachePath)) {
-        // Klasörü kopyala
-        execSync(`cp -r "${cachePath}" "${targetCachePath}"`, {
-          stdio: "inherit",
-        })
-        console.log("✅ Puppeteer cache resources klasörüne kopyalandı")
-      } else {
-        console.log("✅ Puppeteer cache zaten resources klasöründe mevcut")
-      }
+    if (fs.existsSync(cachePath) && !fs.existsSync(targetCachePath)) {
+      console.log("📦 Puppeteer cache resources klasörüne kopyalanıyor...")
+
+      // Klasörü kopyala
+      execSync(`cp -r "${cachePath}" "${targetCachePath}"`, {
+        stdio: "inherit",
+      })
+      console.log("✅ Puppeteer cache resources klasörüne kopyalandı")
+    } else if (fs.existsSync(targetCachePath)) {
+      console.log("✅ Puppeteer cache zaten resources klasöründe mevcut")
     }
 
     console.log("✅ Build hazırlığı tamamlandı!")
@@ -137,6 +126,26 @@ async function setupBuild() {
     // Hata durumunda bile devam et
     console.log("⚠️ Hata olsa da build devam ediyor...")
   }
+}
+
+// Klasör boyutunu hesapla
+function getDirectorySize(dirPath) {
+  let totalSize = 0
+  try {
+    const items = fs.readdirSync(dirPath)
+    for (const item of items) {
+      const itemPath = path.join(dirPath, item)
+      const stats = fs.statSync(itemPath)
+      if (stats.isDirectory()) {
+        totalSize += getDirectorySize(itemPath)
+      } else {
+        totalSize += stats.size
+      }
+    }
+  } catch (error) {
+    console.log(`Klasör boyutu hesaplanamadı: ${dirPath}`)
+  }
+  return totalSize
 }
 
 setupBuild()

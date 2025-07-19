@@ -71,24 +71,8 @@
         "to": "assets"
       },
       {
-        "from": "node_modules/puppeteer",
+        "from": "resources/puppeteer",
         "to": "puppeteer",
-        "filter": [
-          "**/*",
-          "!.local-chromium/**/*",
-          "!.cache/**/*"
-        ]
-      },
-      {
-        "from": "node_modules/puppeteer/.local-chromium",
-        "to": "puppeteer/.local-chromium",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "node_modules/puppeteer/.cache",
-        "to": "puppeteer/.cache",
         "filter": [
           "**/*"
         ]
