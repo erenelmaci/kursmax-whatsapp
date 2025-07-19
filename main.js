@@ -1109,22 +1109,20 @@ async function initializePuppeteer() {
 
     // Executable path'i ayarla
     if (app.isPackaged) {
-      // Production'da sistem Chrome'unu kullan
-      console.log("Production modunda sistem Chrome'u aranıyor...")
+      // Production'da Puppeteer Chromium'u doğrudan kullan
+      console.log("Production modunda Puppeteer Chromium aranıyor...")
 
       // Farklı platformlar için executable path'leri dene
       let chromePath = null
 
       if (process.platform === "darwin") {
-        // Mac için sistem Chrome'unu öncelikle dene
+        // Mac için Puppeteer Chromium'u öncelikle dene
         const possiblePaths = [
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-          "/Applications/Chromium.app/Contents/MacOS/Chromium",
-          // Puppeteer Chromium'u son çare olarak dene
           path.join(
             process.resourcesPath,
             "puppeteer",
             ".local-chromium",
+            "mac_arm-138.0.7204.92",
             "chrome-mac-arm64",
             "Google Chrome for Testing.app",
             "Contents",
@@ -1135,12 +1133,27 @@ async function initializePuppeteer() {
             process.resourcesPath,
             "puppeteer",
             ".local-chromium",
+            "mac_arm-138.0.7204.157",
+            "chrome-mac-arm64",
+            "Google Chrome for Testing.app",
+            "Contents",
+            "MacOS",
+            "Google Chrome for Testing"
+          ),
+          path.join(
+            process.resourcesPath,
+            "puppeteer",
+            ".local-chromium",
+            "mac_x64-138.0.7204.92",
             "chrome-mac-x64",
             "Google Chrome for Testing.app",
             "Contents",
             "MacOS",
             "Google Chrome for Testing"
           ),
+          // Sistem Chrome'u son çare olarak dene
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "/Applications/Chromium.app/Contents/MacOS/Chromium",
         ]
 
         for (const testPath of possiblePaths) {
@@ -1151,15 +1164,13 @@ async function initializePuppeteer() {
           }
         }
       } else if (process.platform === "win32") {
-        // Windows için sistem Chrome'unu öncelikle dene
+        // Windows için Puppeteer Chromium'u öncelikle dene
         const possiblePaths = [
-          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-          "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-          // Puppeteer Chromium'u son çare olarak dene
           path.join(
             process.resourcesPath,
             "puppeteer",
             ".local-chromium",
+            "win64-138.0.7204.92",
             "chrome-win64",
             "chrome.exe"
           ),
@@ -1167,9 +1178,21 @@ async function initializePuppeteer() {
             process.resourcesPath,
             "puppeteer",
             ".local-chromium",
+            "win64-138.0.7204.157",
+            "chrome-win64",
+            "chrome.exe"
+          ),
+          path.join(
+            process.resourcesPath,
+            "puppeteer",
+            ".local-chromium",
+            "win32-138.0.7204.92",
             "chrome-win32",
             "chrome.exe"
           ),
+          // Sistem Chrome'u son çare olarak dene
+          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+          "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
         ]
 
         for (const testPath of possiblePaths) {
@@ -1180,19 +1203,28 @@ async function initializePuppeteer() {
           }
         }
       } else if (process.platform === "linux") {
-        // Linux için sistem Chrome'unu öncelikle dene
+        // Linux için Puppeteer Chromium'u öncelikle dene
         const possiblePaths = [
-          "/usr/bin/google-chrome",
-          "/usr/bin/chromium-browser",
-          "/usr/bin/chromium",
-          // Puppeteer Chromium'u son çare olarak dene
           path.join(
             process.resourcesPath,
             "puppeteer",
             ".local-chromium",
+            "linux-138.0.7204.92",
             "chrome-linux",
             "chrome"
           ),
+          path.join(
+            process.resourcesPath,
+            "puppeteer",
+            ".local-chromium",
+            "linux-138.0.7204.157",
+            "chrome-linux",
+            "chrome"
+          ),
+          // Sistem Chrome'u son çare olarak dene
+          "/usr/bin/google-chrome",
+          "/usr/bin/chromium-browser",
+          "/usr/bin/chromium",
         ]
 
         for (const testPath of possiblePaths) {
@@ -1208,24 +1240,20 @@ async function initializePuppeteer() {
         launchOptions.executablePath = chromePath
         console.log("Chrome kullanılıyor:", chromePath)
       } else {
-        console.log(
-          "Sistem Chrome'u bulunamadı, Puppeteer Chromium deneniyor..."
-        )
+        console.log("Puppeteer Chromium bulunamadı, varsayılan kullanılıyor")
 
-        // Puppeteer Chromium'u dene
+        // Son çare olarak Puppeteer'ın kendi executable path'ini dene
         try {
-          const puppeteer = require("puppeteer")
           const systemChromePath = await puppeteer.executablePath()
           if (systemChromePath) {
             launchOptions.executablePath = systemChromePath
-            console.log("Puppeteer Chromium kullanılıyor:", systemChromePath)
-          } else {
             console.log(
-              "Puppeteer Chromium da bulunamadı, varsayılan kullanılıyor"
+              "Puppeteer varsayılan Chromium kullanılıyor:",
+              systemChromePath
             )
           }
         } catch (error) {
-          console.log("Chrome kontrol edilemedi:", error.message)
+          console.log("Chrome executable path bulunamadı:", error.message)
         }
       }
     }
