@@ -1,6 +1,6 @@
 {
   "name": "kursmax-whatsapp",
-  "version": "1.0.35",
+  "version": "1.0.36",
   "description": "KursMax WhatsApp Otomatik Mesaj Gönderme Sistemi",
   "main": "main.js",
   "scripts": {
