@@ -41,32 +41,10 @@ autoUpdater.autoInstallOnAppQuit = true
 
 // Platform'a göre güncelleme sistemi
 if (process.platform === "darwin") {
-  console.log("Mac'te güncelleme sistemi aktif")
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
-  // Mac için özel ayarlar
-  autoUpdater.allowDowngrade = false
-  autoUpdater.allowPrerelease = false
-
-  // Mac için DMG formatını kabul et
-  autoUpdater.setFeedURL({
-    provider: "github",
-    owner: "erenelmaci",
-    repo: "kursmax-whatsapp",
-    private: false,
-    releaseType: "release",
-    updaterCacheDirName: "kursmax-whatsapp-updater",
-    channel: "latest",
-    requestHeaders: {
-      "User-Agent": "KursMax-WhatsApp-Updater",
-    },
-    // Mac için özel ayarlar - DMG dosyalarını tercih et
-    isGeneric: false,
-    updaterCacheDirName: "kursmax-whatsapp-updater",
-    // DMG dosyalarını tercih et
-    allowPrerelease: false,
-    allowDowngrade: false,
-  })
+  console.log("Mac'te güncelleme sistemi devre dışı")
+  // Mac için güncelleme sistemi devre dışı - DMG sorunu yüzünden
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
 } else if (process.platform === "win32") {
   console.log("Windows'ta güncelleme sistemi aktif")
   autoUpdater.autoDownload = true
@@ -159,19 +137,8 @@ autoUpdater.on("error", (err) => {
   // Platform'a özel hata mesajları
   let errorMessage = err.message
   if (process.platform === "darwin") {
-    if (errorMessage.includes("ZIP file not provided")) {
-      errorMessage =
-        "Mac için DMG dosyası bulunamadı. Lütfen manuel olarak güncelleyin."
-    } else if (errorMessage.includes("404")) {
-      errorMessage =
-        "GitHub'da güncelleme dosyası bulunamadı. Lütfen manuel olarak güncelleyin."
-    } else if (errorMessage.includes("network")) {
-      errorMessage =
-        "Ağ bağlantısı hatası. Lütfen internet bağlantınızı kontrol edin."
-    } else if (errorMessage.includes("DMG")) {
-      errorMessage =
-        "DMG dosyası işlenirken hata oluştu. Lütfen manuel olarak güncelleyin."
-    }
+    errorMessage =
+      "Mac için otomatik güncelleme devre dışı. Lütfen manuel olarak güncelleyin."
   } else if (process.platform === "win32") {
     if (errorMessage.includes("ZIP file not provided")) {
       errorMessage =
