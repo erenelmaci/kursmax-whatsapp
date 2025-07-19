@@ -25,11 +25,9 @@ extraResources:
   - from: node_modules/puppeteer/.local-chromium
     to: puppeteer/.local-chromium
     filter: ["**/*"]
-    optional: true
   - from: node_modules/puppeteer/.cache
     to: puppeteer/.cache
     filter: ["**/*"]
-    optional: true
 win:
   target:
     - target: nsis
