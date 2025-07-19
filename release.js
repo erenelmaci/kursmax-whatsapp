@@ -57,8 +57,8 @@ async function release() {
       console.log("🔨 Windows build alınıyor...")
       execSync("npm run build:win:clean", { stdio: "inherit" })
     } else if (platform === "darwin") {
-      console.log("🔨 Mac build alınıyor...")
-      execSync("npm run build:mac:clean", { stdio: "inherit" })
+      console.log("🔨 Mac ve Windows build alınıyor...")
+      execSync("npm run build:all:clean", { stdio: "inherit" })
     } else {
       console.log("🔨 Tüm platformlar için build alınıyor...")
       execSync("npm run build:all:clean", { stdio: "inherit" })
@@ -78,14 +78,22 @@ async function release() {
       )
     } else if (platform === "darwin") {
       console.log(
-        `5. dist/KursMax-WhatsApp-${newVersion}-*.dmg dosyasını yükleyin`
+        `5. dist/KursMax-WhatsApp-Setup-${newVersion}.exe dosyasını yükleyin`
+      )
+      console.log(
+        `6. dist/KursMax-WhatsApp-${newVersion}-*.dmg dosyalarını yükleyin`
+      )
+      console.log(
+        `7. dist/latest.yml ve dist/latest-mac.yml dosyalarını yükleyin`
       )
     } else {
       console.log(`5. dist/ klasöründeki tüm build dosyalarını yükleyin`)
     }
 
-    console.log(`6. dist/latest.yml dosyasını da yükleyin`)
-    console.log(`7. "Publish release" tıklayın`)
+    if (platform !== "darwin") {
+      console.log(`6. dist/latest.yml dosyasını da yükleyin`)
+    }
+    console.log(`8. "Publish release" tıklayın`)
     console.log("")
     console.log("🎉 GitHub Actions otomatik olarak release oluşturacak!")
   } catch (error) {
