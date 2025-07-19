@@ -86,13 +86,9 @@ async function setupBuild() {
         fs.rmSync(targetChromiumPath, { recursive: true, force: true })
       }
 
-      // Cache klasöründen kopyala
-      execSync(`cp -r "${cacheChromiumPath}" "${targetChromiumPath}"`, {
-        stdio: "inherit",
-      })
-      console.log(
-        "✅ Puppeteer Chromium cache'den resources klasörüne kopyalandı"
-      )
+      // Sadece gerekli dosyaları kopyala (optimize edilmiş)
+      await copyOptimizedChromium(cacheChromiumPath, targetChromiumPath)
+      console.log("✅ Puppeteer Chromium optimize edilmiş şekilde kopyalandı")
     } else if (fs.existsSync(targetChromiumPath)) {
       console.log(
         "✅ Puppeteer Chromium zaten resources klasöründe mevcut ve güncel"
@@ -126,6 +122,151 @@ async function setupBuild() {
     // Hata durumunda bile devam et
     console.log("⚠️ Hata olsa da build devam ediyor...")
   }
+}
+
+// Optimize edilmiş Chromium kopyalama
+async function copyOptimizedChromium(sourcePath, targetPath) {
+  console.log("🔧 Chromium optimize ediliyor...")
+
+  // Platform'a göre optimize et
+  const platform = process.platform
+  const arch = process.arch
+
+  if (platform === "darwin") {
+    // Mac için optimize et
+    await copyMacChromium(sourcePath, targetPath)
+  } else if (platform === "win32") {
+    // Windows için optimize et
+    await copyWindowsChromium(sourcePath, targetPath)
+  } else if (platform === "linux") {
+    // Linux için optimize et
+    await copyLinuxChromium(sourcePath, targetPath)
+  }
+}
+
+// Mac Chromium kopyalama (optimize edilmiş)
+async function copyMacChromium(sourcePath, targetPath) {
+  console.log("🍎 Mac Chromium optimize ediliyor...")
+
+  // Önce tüm klasörü kopyala
+  execSync(`cp -r "${sourcePath}" "${targetPath}"`, {
+    stdio: "inherit",
+  })
+
+  // Gereksiz dosyaları sil
+  const chromeFolders = fs.readdirSync(targetPath)
+
+  for (const folder of chromeFolders) {
+    const folderPath = path.join(targetPath, folder)
+    const chromePath = path.join(folderPath, "chrome-mac-arm64")
+
+    if (fs.existsSync(chromePath)) {
+      // Sadece gerekli dosyaları tut
+      const keepFiles = ["Google Chrome for Testing.app", "ABOUT"]
+
+      const chromeContents = fs.readdirSync(chromePath)
+
+      for (const item of chromeContents) {
+        if (!keepFiles.includes(item)) {
+          const itemPath = path.join(chromePath, item)
+          if (fs.existsSync(itemPath)) {
+            fs.rmSync(itemPath, { recursive: true, force: true })
+            console.log(`🗑️ Silindi: ${item}`)
+          }
+        }
+      }
+    }
+  }
+
+  console.log("✅ Mac Chromium optimize edildi")
+}
+
+// Windows Chromium kopyalama (optimize edilmiş)
+async function copyWindowsChromium(sourcePath, targetPath) {
+  console.log("🪟 Windows Chromium optimize ediliyor...")
+
+  // Önce tüm klasörü kopyala
+  execSync(`cp -r "${sourcePath}" "${targetPath}"`, {
+    stdio: "inherit",
+  })
+
+  // Gereksiz dosyaları sil
+  const chromeFolders = fs.readdirSync(targetPath)
+
+  for (const folder of chromeFolders) {
+    const folderPath = path.join(targetPath, folder)
+    const chromePath = path.join(folderPath, "chrome-win64")
+
+    if (fs.existsSync(chromePath)) {
+      // Sadece gerekli dosyaları tut
+      const keepFiles = [
+        "chrome.exe",
+        "chrome_100_percent.pak",
+        "chrome_200_percent.pak",
+        "resources.pak",
+        "icudtl.dat",
+        "v8_context_snapshot.bin",
+      ]
+
+      const chromeContents = fs.readdirSync(chromePath)
+
+      for (const item of chromeContents) {
+        if (!keepFiles.includes(item)) {
+          const itemPath = path.join(chromePath, item)
+          if (fs.existsSync(itemPath)) {
+            fs.rmSync(itemPath, { recursive: true, force: true })
+            console.log(`🗑️ Silindi: ${item}`)
+          }
+        }
+      }
+    }
+  }
+
+  console.log("✅ Windows Chromium optimize edildi")
+}
+
+// Linux Chromium kopyalama (optimize edilmiş)
+async function copyLinuxChromium(sourcePath, targetPath) {
+  console.log("🐧 Linux Chromium optimize ediliyor...")
+
+  // Önce tüm klasörü kopyala
+  execSync(`cp -r "${sourcePath}" "${targetPath}"`, {
+    stdio: "inherit",
+  })
+
+  // Gereksiz dosyaları sil
+  const chromeFolders = fs.readdirSync(targetPath)
+
+  for (const folder of chromeFolders) {
+    const folderPath = path.join(targetPath, folder)
+    const chromePath = path.join(folderPath, "chrome-linux")
+
+    if (fs.existsSync(chromePath)) {
+      // Sadece gerekli dosyaları tut
+      const keepFiles = [
+        "chrome",
+        "chrome_100_percent.pak",
+        "chrome_200_percent.pak",
+        "resources.pak",
+        "icudtl.dat",
+        "v8_context_snapshot.bin",
+      ]
+
+      const chromeContents = fs.readdirSync(chromePath)
+
+      for (const item of chromeContents) {
+        if (!keepFiles.includes(item)) {
+          const itemPath = path.join(chromePath, item)
+          if (fs.existsSync(itemPath)) {
+            fs.rmSync(itemPath, { recursive: true, force: true })
+            console.log(`🗑️ Silindi: ${item}`)
+          }
+        }
+      }
+    }
+  }
+
+  console.log("✅ Linux Chromium optimize edildi")
 }
 
 // Klasör boyutunu hesapla
