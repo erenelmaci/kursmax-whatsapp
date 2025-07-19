@@ -87,6 +87,12 @@ if (process.platform === "darwin") {
     requestHeaders: {
       "User-Agent": "KursMax-WhatsApp-Updater",
     },
+    // Windows için özel ayarlar - EXE dosyalarını tercih et
+    isGeneric: false,
+    updaterCacheDirName: "kursmax-whatsapp-updater",
+    // EXE dosyalarını tercih et
+    allowPrerelease: false,
+    allowDowngrade: false,
   })
 } else {
   console.log("Linux'ta güncelleme sistemi aktif")
