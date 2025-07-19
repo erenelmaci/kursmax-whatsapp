@@ -25,9 +25,11 @@ extraResources:
   - from: node_modules/puppeteer/.local-chromium
     to: puppeteer/.local-chromium
     filter: ["**/*"]
+    optional: true
   - from: node_modules/puppeteer/.cache
     to: puppeteer/.cache
     filter: ["**/*"]
+    optional: true
 mac:
   category: public.app-category.education
   icon: assets/icon.icns

@@ -1,6 +1,6 @@
 {
   "name": "kursmax-whatsapp",
-  "version": "1.0.32",
+  "version": "1.0.33",
   "description": "KursMax WhatsApp Otomatik Mesaj Gönderme Sistemi",
   "main": "main.js",
   "scripts": {
@@ -84,14 +84,16 @@
         "to": "puppeteer/.local-chromium",
         "filter": [
           "**/*"
-        ]
+        ],
+        "optional": true
       },
       {
         "from": "node_modules/puppeteer/.cache",
         "to": "puppeteer/.cache",
         "filter": [
           "**/*"
-        ]
+        ],
+        "optional": true
       }
     ],
     "mac": {

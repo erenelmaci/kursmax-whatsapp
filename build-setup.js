@@ -20,9 +20,10 @@ async function setupBuild() {
 
     // Puppeteer'ın Chromium'unu indir
     console.log("🌐 Puppeteer Chromium indiriliyor...")
+    let executablePath = null
     try {
       const puppeteer = require("puppeteer")
-      const executablePath = await puppeteer.executablePath()
+      executablePath = await puppeteer.executablePath()
       console.log("✅ Chromium hazır:", executablePath)
     } catch (error) {
       console.log("⚠️ Chromium indirme hatası:", error.message)
@@ -51,10 +52,80 @@ async function setupBuild() {
       fs.mkdirSync(cachePath, { recursive: true })
     }
 
+    // GitHub Actions için özel işlem
+    if (process.env.GITHUB_ACTIONS) {
+      console.log("🔄 GitHub Actions ortamı tespit edildi")
+
+      if (executablePath) {
+        // Chromium'un bulunduğu dizini bul
+        const chromiumDir = path.dirname(executablePath)
+        const platform = process.platform
+        const arch = process.arch
+
+        console.log(`📂 Chromium dizini: ${chromiumDir}`)
+        console.log(`🖥️  Platform: ${platform}, Arch: ${arch}`)
+
+        // Platform'a göre hedef klasör oluştur
+        let targetDir = ""
+        if (platform === "win32") {
+          targetDir = path.join(localChromiumPath, "chrome-win64")
+        } else if (platform === "darwin") {
+          targetDir = path.join(localChromiumPath, "chrome-mac-arm64")
+        } else {
+          targetDir = path.join(localChromiumPath, "chrome-linux")
+        }
+
+        // Chromium'u kopyala
+        if (fs.existsSync(chromiumDir) && !fs.existsSync(targetDir)) {
+          console.log(
+            `📋 Chromium kopyalanıyor: ${chromiumDir} -> ${targetDir}`
+          )
+          try {
+            // Recursive copy
+            const copyRecursive = (src, dest) => {
+              if (fs.lstatSync(src).isDirectory()) {
+                if (!fs.existsSync(dest)) {
+                  fs.mkdirSync(dest, { recursive: true })
+                }
+                fs.readdirSync(src).forEach((file) => {
+                  copyRecursive(path.join(src, file), path.join(dest, file))
+                })
+              } else {
+                fs.copyFileSync(src, dest)
+              }
+            }
+
+            copyRecursive(chromiumDir, targetDir)
+            console.log("✅ Chromium başarıyla kopyalandı")
+          } catch (error) {
+            console.log("⚠️ Chromium kopyalama hatası:", error.message)
+          }
+        }
+      }
+    }
+
+    // Dummy dosyalar oluştur (eğer klasörler boşsa)
+    const dummyFiles = [
+      path.join(localChromiumPath, ".gitkeep"),
+      path.join(cachePath, ".gitkeep"),
+    ]
+
+    dummyFiles.forEach((file) => {
+      if (!fs.existsSync(file)) {
+        try {
+          fs.writeFileSync(file, "# Bu dosya build sırasında oluşturuldu")
+          console.log(`📄 Dummy dosya oluşturuldu: ${file}`)
+        } catch (error) {
+          console.log(`⚠️ Dummy dosya oluşturulamadı: ${file}`)
+        }
+      }
+    })
+
     console.log("✅ Build hazırlığı tamamlandı!")
   } catch (error) {
     console.error("❌ Build hazırlığı hatası:", error.message)
-    process.exit(1)
+    // Hata durumunda bile devam et
+    console.log("⚠️ Hata olsa da build devam ediyor...")
   }
 }
 
