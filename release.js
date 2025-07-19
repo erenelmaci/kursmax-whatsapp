@@ -55,13 +55,13 @@ async function release() {
     // 6. Build al - Platform'a göre
     if (platform === "win32") {
       console.log("🔨 Windows build alınıyor...")
-      execSync("npm run build:win:clean", { stdio: "inherit" })
+      execSync("npm run build:win", { stdio: "inherit" })
     } else if (platform === "darwin") {
       console.log("🔨 Mac ve Windows build alınıyor...")
-      execSync("npm run build:all:clean", { stdio: "inherit" })
+      execSync("npm run build:all", { stdio: "inherit" })
     } else {
       console.log("🔨 Tüm platformlar için build alınıyor...")
-      execSync("npm run build:all:clean", { stdio: "inherit" })
+      execSync("npm run build:all", { stdio: "inherit" })
     }
 
     console.log("✅ Sürüm yayınlama tamamlandı!")
