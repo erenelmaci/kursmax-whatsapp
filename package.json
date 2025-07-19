@@ -1,21 +1,24 @@
 {
   "name": "kursmax-whatsapp",
-  "version": "1.0.31",
+  "version": "1.0.32",
   "description": "KursMax WhatsApp Otomatik Mesaj Gönderme Sistemi",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
-    "build:win": "electron-builder --win --publish never --config electron-builder-win.yml",
-    "build:mac": "electron-builder --mac --publish never --config electron-builder-mac.yml",
-    "build:linux": "electron-builder --linux",
+    "prebuild": "node build-setup.js",
+    "build:win": "npm run prebuild && electron-builder --win --publish never --config electron-builder-win.yml",
+    "build:mac": "npm run prebuild && electron-builder --mac --publish never --config electron-builder-mac.yml",
+    "build:linux": "npm run prebuild && electron-builder --linux",
+    "build:all": "npm run prebuild && npm run build:win && npm run build:mac",
     "publish": "electron-builder --win --publish always",
     "release": "node release.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "clean": "node clean-dist.js",
     "build:win:clean": "npm run clean && npm run build:win",
-    "build:mac:clean": "npm run clean && npm run build:mac"
+    "build:mac:clean": "npm run clean && npm run build:mac",
+    "build:all:clean": "npm run clean && npm run build:all"
   },
   "keywords": [
     "electron",
@@ -68,8 +71,27 @@
         "to": "assets"
       },
       {
+        "from": "node_modules/puppeteer",
+        "to": "puppeteer",
+        "filter": [
+          "**/*",
+          "!.local-chromium/**/*",
+          "!.cache/**/*"
+        ]
+      },
+      {
         "from": "node_modules/puppeteer/.local-chromium",
-        "to": "puppeteer/.local-chromium"
+        "to": "puppeteer/.local-chromium",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "node_modules/puppeteer/.cache",
+        "to": "puppeteer/.cache",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {

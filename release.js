@@ -2,11 +2,16 @@
 
 const fs = require("fs")
 const { execSync } = require("child_process")
+const os = require("os")
 
 // Sürüm yayınlama script'i
 async function release() {
   try {
     console.log("🚀 Sürüm yayınlama başlatılıyor...")
+
+    // Platform tespiti
+    const platform = os.platform()
+    console.log(`🖥️  Platform: ${platform}`)
 
     // 1. Commit mesajını al
     const commitMessage = process.argv[2]
@@ -47,9 +52,17 @@ async function release() {
     execSync(`git tag v${newVersion}`, { stdio: "inherit" })
     execSync(`git push origin v${newVersion}`, { stdio: "inherit" })
 
-    // 6. Build al
-    console.log("🔨 Windows build alınıyor...")
-    execSync("npm run build:win:clean", { stdio: "inherit" })
+    // 6. Build al - Platform'a göre
+    if (platform === "win32") {
+      console.log("🔨 Windows build alınıyor...")
+      execSync("npm run build:win:clean", { stdio: "inherit" })
+    } else if (platform === "darwin") {
+      console.log("🔨 Mac build alınıyor...")
+      execSync("npm run build:mac:clean", { stdio: "inherit" })
+    } else {
+      console.log("🔨 Tüm platformlar için build alınıyor...")
+      execSync("npm run build:all:clean", { stdio: "inherit" })
+    }
 
     console.log("✅ Sürüm yayınlama tamamlandı!")
     console.log("")
@@ -58,9 +71,19 @@ async function release() {
     console.log(`2. "Create new release" tıklayın`)
     console.log(`3. Tag: v${newVersion}`)
     console.log(`4. Title: KursMax WhatsApp v${newVersion}`)
-    console.log(
-      `5. dist/KursMax WhatsApp Setup ${newVersion}.exe dosyasını yükleyin`
-    )
+
+    if (platform === "win32") {
+      console.log(
+        `5. dist/KursMax-WhatsApp-Setup-${newVersion}.exe dosyasını yükleyin`
+      )
+    } else if (platform === "darwin") {
+      console.log(
+        `5. dist/KursMax-WhatsApp-${newVersion}-*.dmg dosyasını yükleyin`
+      )
+    } else {
+      console.log(`5. dist/ klasöründeki tüm build dosyalarını yükleyin`)
+    }
+
     console.log(`6. dist/latest.yml dosyasını da yükleyin`)
     console.log(`7. "Publish release" tıklayın`)
     console.log("")

@@ -16,8 +16,18 @@ files:
 extraResources:
   - from: assets
     to: assets
+  - from: node_modules/puppeteer
+    to: puppeteer
+    filter:
+      - "**/*"
+      - "!.local-chromium/**/*"
+      - "!.cache/**/*"
   - from: node_modules/puppeteer/.local-chromium
     to: puppeteer/.local-chromium
+    filter: ["**/*"]
+  - from: node_modules/puppeteer/.cache
+    to: puppeteer/.cache
+    filter: ["**/*"]
 mac:
   category: public.app-category.education
   icon: assets/icon.icns

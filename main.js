@@ -322,6 +322,20 @@ async function kursmaxLogin(kurumkod, kullanici, parola) {
   try {
     console.log("KursMax'e giriş yapılıyor...")
 
+    // Platform tespiti ve log
+    const platform = process.platform
+    const platformName =
+      platform === "darwin"
+        ? "macOS"
+        : platform === "win32"
+        ? "Windows"
+        : platform === "linux"
+        ? "Linux"
+        : platform
+    console.log(`🖥️  Sistem: ${platformName} (${platform})`)
+    console.log(`📱 Electron sürümü: ${process.versions.electron}`)
+    console.log(`🔧 Node.js sürümü: ${process.versions.node}`)
+
     const url = `${KURSMAX_API.LOGIN}?q0=${encodeURIComponent(
       kurumkod
     )}&q1=${encodeURIComponent(kullanici)}&q3=${encodeURIComponent(parola)}`
