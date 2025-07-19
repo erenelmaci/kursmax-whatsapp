@@ -31,10 +31,19 @@ extraResources:
 mac:
   category: public.app-category.education
   icon: assets/icon.icns
-  target: dmg
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
   artifactName: "KursMax-WhatsApp-${version}-${arch}.dmg"
   generateUpdatesFilesForAllChannels: true
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: null
+  entitlementsInherit: null
 publish:
   provider: github
   owner: erenelmaci
   repo: kursmax-whatsapp
+  releaseType: release

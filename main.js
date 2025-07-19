@@ -39,7 +39,7 @@ let updateInfo = null
 autoUpdater.autoDownload = true // Otomatik indirme aktif
 autoUpdater.autoInstallOnAppQuit = true
 
-// Mac için güncelleme sistemi aktif
+// Platform'a göre güncelleme sistemi
 if (process.platform === "darwin") {
   console.log("Mac'te güncelleme sistemi aktif")
   autoUpdater.autoDownload = true
@@ -47,6 +47,7 @@ if (process.platform === "darwin") {
   // Mac için özel ayarlar
   autoUpdater.allowDowngrade = false
   autoUpdater.allowPrerelease = false
+
   // Mac için DMG formatını kabul et
   autoUpdater.setFeedURL({
     provider: "github",
@@ -54,6 +55,41 @@ if (process.platform === "darwin") {
     repo: "kursmax-whatsapp",
     private: false,
     releaseType: "release",
+    updaterCacheDirName: "kursmax-whatsapp-updater",
+  })
+} else if (process.platform === "win32") {
+  console.log("Windows'ta güncelleme sistemi aktif")
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+  // Windows için özel ayarlar
+  autoUpdater.allowDowngrade = false
+  autoUpdater.allowPrerelease = false
+
+  // Windows için EXE formatını kabul et
+  autoUpdater.setFeedURL({
+    provider: "github",
+    owner: "erenelmaci",
+    repo: "kursmax-whatsapp",
+    private: false,
+    releaseType: "release",
+    updaterCacheDirName: "kursmax-whatsapp-updater",
+  })
+} else {
+  console.log("Linux'ta güncelleme sistemi aktif")
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+  // Linux için özel ayarlar
+  autoUpdater.allowDowngrade = false
+  autoUpdater.allowPrerelease = false
+
+  // Linux için AppImage formatını kabul et
+  autoUpdater.setFeedURL({
+    provider: "github",
+    owner: "erenelmaci",
+    repo: "kursmax-whatsapp",
+    private: false,
+    releaseType: "release",
+    updaterCacheDirName: "kursmax-whatsapp-updater",
   })
 }
 
@@ -95,10 +131,26 @@ autoUpdater.on("update-not-available", (info) => {
 
 autoUpdater.on("error", (err) => {
   console.log("Güncelleme hatası:", err)
+
+  // Platform'a özel hata mesajları
+  let errorMessage = err.message
+  if (process.platform === "darwin") {
+    if (errorMessage.includes("ZIP file not provided")) {
+      errorMessage =
+        "Mac için DMG dosyası bulunamadı. Lütfen manuel olarak güncelleyin."
+    }
+  } else if (process.platform === "win32") {
+    if (errorMessage.includes("ZIP file not provided")) {
+      errorMessage =
+        "Windows için EXE dosyası bulunamadı. Lütfen manuel olarak güncelleyin."
+    }
+  }
+
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("update-status", {
       status: "error",
-      error: err.message,
+      error: errorMessage,
+      platform: process.platform,
     })
   }
 })
@@ -133,7 +185,21 @@ autoUpdater.on("before-quit-for-update", () => {
 // Güncelleme kontrol fonksiyonu
 function checkForUpdates() {
   console.log("Güncelleme kontrol ediliyor...")
-  autoUpdater.checkForUpdates()
+  console.log(`🖥️  Platform: ${process.platform}`)
+  console.log(`📱 Mevcut sürüm: ${app.getVersion()}`)
+
+  try {
+    autoUpdater.checkForUpdates()
+  } catch (error) {
+    console.error("Güncelleme kontrolü hatası:", error)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("update-status", {
+        status: "error",
+        error: "Güncelleme kontrolü başarısız: " + error.message,
+        platform: process.platform,
+      })
+    }
+  }
 }
 
 // Güncelleme indirme fonksiyonu

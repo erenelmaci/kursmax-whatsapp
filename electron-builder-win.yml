@@ -38,12 +38,16 @@ win:
   requestedExecutionLevel: asInvoker
   artifactName: "KursMax-WhatsApp-Setup-${version}.exe"
   generateUpdatesFilesForAllChannels: true
+  signAndEditExecutable: false
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
 publish:
   provider: github
   owner: erenelmaci
   repo: kursmax-whatsapp
+  releaseType: release

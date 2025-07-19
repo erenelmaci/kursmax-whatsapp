@@ -97,7 +97,19 @@
     "mac": {
       "category": "public.app-category.education",
       "icon": "assets/icon.icns",
-      "target": "dmg"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": null,
+      "entitlementsInherit": null
     },
     "win": {
       "target": [
@@ -110,7 +122,8 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "signAndEditExecutable": false
     },
     "linux": {
       "target": "AppImage",
